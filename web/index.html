@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#11100f">
+  <meta name="description" content="A worldwide television premiere calendar where date comes before popularity.">
+  <meta name="htmx-config" content='{"defaultTimeout":10000,"historyControl":false}'>
+  <title>Global Media Discovery</title>
+  <link rel="icon" href="/favicon.svg?v=1.3.0" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/assets/tailwind.css?v=1.3.0">
+  <link rel="stylesheet" href="/assets/app.css?v=1.3.0">
+  <script src="/assets/htmx.min.js?v=4.0.0-beta6"></script>
+  <script src="/assets/app.js?v=1.3.0" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#results">Skip to results</a>
+
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Global Media Discovery home">
+        <span class="brand-mark" aria-hidden="true">
+          <span class="brand-mark__orbit"></span>
+          <span class="brand-mark__dot"></span>
+        </span>
+        <span class="brand-copy">
+          <strong id="brandName">Global Media Discovery</strong>
+          <small>Date-first television catalog</small>
+        </span>
+      </a>
+
+      <nav class="header-actions" aria-label="Primary">
+        <button class="text-button" id="todayHeaderButton" type="button">Today</button>
+        <button class="text-button" id="coverageButton" type="button"
+                hx-get="/ui/v1/coverage" hx-target="#coverageContent"
+                hx-swap="innerHTML transition:true">Coverage</button>
+        <button class="text-button" id="creditsButton" type="button"
+                hx-get="/ui/v1/credits" hx-target="#creditsSources"
+                hx-swap="innerHTML transition:true">About &amp; sources</button>
+        <button class="icon-button" id="themeButton" type="button" aria-label="Change color theme" title="Change color theme">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M12 3v2.25M12 18.75V21M3 12h2.25M18.75 12H21M5.64 5.64l1.6 1.6M16.76 16.76l1.6 1.6M18.36 5.64l-1.6 1.6M7.24 16.76l-1.6 1.6"/>
+            <circle cx="12" cy="12" r="4.25"/>
+          </svg>
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="date-command" aria-labelledby="dateHeading">
+        <div class="date-command__eyebrow">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="catalogStatus">Catalog starting…</span>
+        </div>
+
+        <div class="date-command__main">
+          <button class="date-step" id="previousButton" type="button" aria-label="Previous period">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+
+          <button class="date-display" id="dateDisplayButton" type="button" aria-describedby="dateSubheading">
+            <span id="dateHeading">Thursday</span>
+            <strong id="dateDisplay">August 13, 2026</strong>
+            <span id="dateSubheading">Worldwide premieres</span>
+          </button>
+
+          <button class="date-step" id="nextButton" type="button" aria-label="Next period">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+
+          <input class="visually-hidden" id="datePicker" type="date" aria-label="Choose date">
+        </div>
+
+        <div class="range-presets" role="group" aria-label="Date range">
+          <button class="range-chip is-active" data-view="day" data-relative="today" type="button">Today</button>
+          <button class="range-chip" data-view="day" data-relative="tomorrow" type="button">Tomorrow</button>
+          <button class="range-chip" data-view="week" data-relative="today" type="button">This week</button>
+          <button class="range-chip" data-view="month" type="button">Month</button>
+          <button class="range-chip" data-view="upcoming" type="button">Next 30 days</button>
+          <button class="range-chip" data-view="custom" type="button">Custom range</button>
+        </div>
+
+        <form class="custom-range" id="customRangeForm" hidden>
+          <label>
+            <span>From</span>
+            <input id="customFrom" type="date" required>
+          </label>
+          <label>
+            <span>To</span>
+            <input id="customTo" type="date" required>
+          </label>
+          <button class="primary-button" type="submit">Show range</button>
+        </form>
+      </section>
+
+      <section class="catalog-summary" aria-label="Catalog summary">
+        <div>
+          <strong id="resultCount">—</strong>
+          <span>premieres in view</span>
+        </div>
+        <div>
+          <strong id="countryCount">—</strong>
+          <span>origin countries</span>
+        </div>
+        <div>
+          <strong id="sourceCount">—</strong>
+          <span>metadata sources</span>
+        </div>
+        <div>
+          <strong id="conflictCount">—</strong>
+          <span>date disagreements</span>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <aside class="filters" id="filtersPanel" aria-label="Filters">
+          <div class="filters__heading">
+            <div>
+              <span class="section-kicker">Refine</span>
+              <h2>What exists?</h2>
+            </div>
+            <button class="text-button filters__clear" id="clearFiltersButton" type="button">Reset</button>
+            <button class="icon-button filters__close" id="closeFiltersButton" type="button" aria-label="Close filters">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+
+          <label class="search-field">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <span class="visually-hidden">Search titles</span>
+            <input id="searchInput" type="search" autocomplete="off" placeholder="Search every title…">
+          </label>
+
+          <div class="filter-grid">
+            <div class="filter-field">
+              <span id="countryFilterLabel">Origin country</span>
+              <details id="countryPicker" class="relative">
+                <summary id="countryFilterSummary"
+                         class="cursor-pointer list-none rounded-lg border border-black/15
+                                bg-white px-3 py-2 text-sm font-semibold select-none
+                                hover:border-black/30 focus-visible:outline-3
+                                focus-visible:outline-offset-2 focus-visible:outline-blue-600
+                                dark:border-white/15 dark:bg-zinc-900 dark:hover:border-white/30
+                                [&amp;::-webkit-details-marker]:hidden">
+                  All countries
+                </summary>
+                <div id="countryFilterOptions" role="listbox"
+                     aria-labelledby="countryFilterLabel"
+                     class="absolute z-50 mt-2 max-h-72 w-full min-w-56 overflow-y-auto
+                            rounded-xl border border-black/15 bg-white p-1.5 shadow-2xl
+                            dark:border-white/15 dark:bg-zinc-900">
+                </div>
+              </details>
+            </div>
+
+            <label class="filter-field">
+              <span>Original language</span>
+              <select id="languageFilter"><option value="">All languages</option></select>
+            </label>
+
+            <label class="filter-field">
+              <span>Network / service</span>
+              <select id="networkFilter"><option value="">All networks</option></select>
+            </label>
+
+            <label class="filter-field">
+              <span>Genre</span>
+              <select id="genreFilter"><option value="">All genres</option></select>
+            </label>
+
+            <label class="filter-field">
+              <span>Format</span>
+              <select id="formatFilter"><option value="">All formats</option></select>
+            </label>
+
+            <label class="filter-field">
+              <span>Source</span>
+              <select id="sourceFilter">
+                <option value="">All sources</option>
+                <option value="tmdb">TMDB</option>
+                <option value="tvdb">TheTVDB</option>
+                <option value="tvmaze">TVmaze</option>
+              </select>
+            </label>
+
+            <label class="filter-field">
+              <span>Event type</span>
+              <select id="eventTypeFilter"><option value="">All event types</option></select>
+            </label>
+
+            <label class="filter-field">
+              <span>Date confidence</span>
+              <select id="confidenceFilter">
+                <option value="">All confidence levels</option>
+                <option value="high">High (85%+)</option>
+                <option value="medium">Medium (65–84%)</option>
+                <option value="low">Low (under 65%)</option>
+              </select>
+            </label>
+          </div>
+
+          <fieldset class="filter-choice">
+            <legend>Evidence agreement</legend>
+            <label><input type="radio" name="conflict" value="" checked> Everything</label>
+            <label><input type="radio" name="conflict" value="exclude"> Agreed dates only</label>
+            <label><input type="radio" name="conflict" value="only"> Disagreements only</label>
+          </fieldset>
+
+          <div class="filter-note">
+            <strong>Obscure is the default.</strong>
+            <p>No popularity or vote threshold is applied. A title appears when a source knows it exists.</p>
+          </div>
+        </aside>
+
+        <div class="results-column">
+          <div class="results-toolbar">
+            <button class="secondary-button mobile-filter-button" id="mobileFilterButton" type="button" aria-controls="filtersPanel" aria-expanded="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+              Filters
+            </button>
+            <div class="results-copy">
+              <span class="section-kicker" id="resultsKicker">Series premieres</span>
+              <h1 id="resultsTitle">Thursday, August 13</h1>
+            </div>
+            <label class="sort-control">
+              <span>Sort</span>
+              <select id="sortSelect">
+                <option value="date_asc">Date, then title</option>
+                <option value="date_desc">Latest date first</option>
+                <option value="title_asc">Title A–Z</option>
+                <option value="confidence_desc">Highest confidence</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="active-filters" id="activeFilters" aria-live="polite"></div>
+
+          <section class="calendar-panel" id="calendarPanel" hidden aria-label="Monthly premiere calendar">
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+          </section>
+
+          <section class="results-list" id="results" aria-live="polite" aria-busy="true">
+            <div class="loading-state" id="loadingState">
+              <div class="loader" aria-hidden="true"></div>
+              <p>Reading the worldwide calendar…</p>
+            </div>
+          </section>
+
+          <div class="load-more-wrap">
+            <button class="secondary-button" id="loadMoreButton" type="button" hidden>Load more</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong id="footerName">Global Media Discovery</strong>
+        <p>A read-only, date-first index. Source dates remain visible when databases disagree.</p>
+      </div>
+      <div class="footer-sources" aria-label="Metadata sources">
+        <a href="https://www.themoviedb.org/" rel="noreferrer" target="_blank" aria-label="TMDB">
+          <img src="/assets/tmdb.svg" alt="TMDB">
+        </a>
+        <a href="https://thetvdb.com/" rel="noreferrer" target="_blank">TheTVDB</a>
+        <a href="https://www.tvmaze.com/" rel="noreferrer" target="_blank">TVmaze</a>
+      </div>
+    </footer>
+  </div>
+
+  <div class="filter-scrim" id="filterScrim" hidden></div>
+
+  <dialog class="detail-dialog" id="detailDialog">
+    <button class="dialog-close icon-button" id="detailCloseButton" type="button" aria-label="Close details">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <div id="detailContent"></div>
+  </dialog>
+
+  <dialog class="credits-dialog" id="creditsDialog">
+    <button class="dialog-close icon-button" id="creditsCloseButton" type="button" aria-label="Close about dialog">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="credits-content">
+      <span class="section-kicker">About this catalog</span>
+      <h2>Date before popularity.</h2>
+      <p>This site combines multiple metadata sources because no individual database knows about every television production. The public interface is completely read-only; scheduled collectors are the only processes allowed to update the catalog.</p>
+      <div id="creditsSources" class="credits-sources">
+        <p class="htmx-indicator text-sm" role="status">Loading source notices…</p>
+      </div>
+      <p class="credits-legal">Source metadata and images remain subject to each provider's terms and licensing. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+    </div>
+  </dialog>
+
+  <dialog class="credits-dialog" id="coverageDialog">
+    <button class="dialog-close icon-button" id="coverageCloseButton" type="button" aria-label="Close coverage dialog">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="credits-content">
+      <span class="section-kicker">Catalog transparency</span>
+      <h2>What is actually covered?</h2>
+      <p>Counts describe records observed from configured providers. They are evidence of coverage, not a promise that every television premiere in a place or year is known.</p>
+      <div id="coverageContent" class="mt-5">
+        <p class="htmx-indicator text-sm" role="status">Measuring catalog coverage…</p>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <noscript>
+    <div class="noscript">JavaScript is required to browse the interactive calendar.</div>
+  </noscript>
+</body>
+</html>

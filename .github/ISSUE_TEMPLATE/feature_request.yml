@@ -1,0 +1,32 @@
+name: Feature request
+description: Propose a focused improvement to the date-first discovery product.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: User need
+      description: What discovery or operating problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the result, including date/evidence semantics when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Product invariants
+      options:
+        - label: This keeps the public application read-only.
+          required: true
+        - label: This does not require fuzzy-only automatic title merging.
+          required: true

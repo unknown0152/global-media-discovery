@@ -1,0 +1,17 @@
+{
+  "name": "Global Media Discovery",
+  "short_name": "GMD",
+  "description": "A worldwide date-first television premiere calendar.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#11100f",
+  "theme_color": "#11100f",
+  "icons": [
+    {
+      "src": "/favicon.svg?v=1.3.0",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

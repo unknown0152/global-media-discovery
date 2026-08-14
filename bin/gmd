@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+INSTALL_DIR="${GMD_INSTALL_DIR:-/opt/global-media-discovery}"
+[ -d "$INSTALL_DIR" ] || { echo "Global Media Discovery is not installed at $INSTALL_DIR" >&2; exit 1; }
+cd "$INSTALL_DIR"
+
+compose() {
+  docker compose "$@"
+}
+
+wait_stack() {
+  compose up -d --remove-orphans --wait --wait-timeout "${GMD_WAIT_TIMEOUT:-180}"
+}
+
+public_url() {
+  sed -n "s/^GMD_PUBLIC_URL='\\(.*\\)'$/\\1/p" .env 2>/dev/null | head -n1
+}
+
+write_secret() {
+  local path="$1" value="$2"
+  printf '%s' "$value" > "$path"
+  chown 65532:65532 "$path"
+  chmod 0400 "$path"
+}
+
+command="${1:-status}"
+shift || true
+
+case "$command" in
+  status)
+    compose ps
+    echo
+    url="$(public_url)"
+    if [ -n "$url" ] && command -v curl >/dev/null 2>&1; then
+      curl -fsS --connect-timeout 5 --max-time 10 "$url/api/v1/health"
+      echo
+    fi
+    ;;
+  logs)
+    if [ "$#" -gt 0 ]; then
+      compose logs --tail="${GMD_LOG_TAIL:-200}" -f "$1"
+    else
+      compose logs --tail="${GMD_LOG_TAIL:-200}" -f
+    fi
+    ;;
+  update)
+    compose run --rm --no-deps collector update
+    ;;
+  validate)
+    compose run --rm --no-deps collector validate
+    ;;
+  stats)
+    compose run --rm --no-deps collector stats
+    ;;
+  backup)
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    mkdir -p data/backups
+    compose run --rm --no-deps collector backup \
+      "/data/backups/catalog-${stamp}.sqlite3"
+    echo "Backup: $INSTALL_DIR/data/backups/catalog-${stamp}.sqlite3"
+    ;;
+  restore)
+    [ "$#" -eq 1 ] || {
+      echo "Usage: gmd restore <backup filename>" >&2
+      exit 2
+    }
+    backup_name="$(basename -- "$1")"
+    [ "$backup_name" = "$1" ] || {
+      echo "Give a filename from $INSTALL_DIR/data/backups, not a path." >&2
+      exit 2
+    }
+    [ -f "data/backups/$backup_name" ] || {
+      echo "Backup not found: $INSTALL_DIR/data/backups/$backup_name" >&2
+      exit 1
+    }
+    compose run --rm --no-deps collector restore "/data/backups/$backup_name"
+    wait_stack
+    ;;
+  credentials)
+    [ -t 0 ] || { echo "gmd credentials requires an interactive terminal." >&2; exit 1; }
+    read -r -s -p "TMDB Read Access Token (blank keeps existing): " tmdb
+    echo
+    read -r -s -p "TheTVDB API key (blank keeps existing): " tvdb
+    echo
+    [ -z "$tmdb" ] || write_secret secrets/tmdb_token "$tmdb"
+    [ -z "$tvdb" ] || write_secret secrets/tvdb_key "$tvdb"
+    wait_stack
+    echo "Credentials updated. Run 'gmd update' to collect immediately."
+    ;;
+  doctor)
+    docker info >/dev/null
+    compose config --quiet
+    compose run --rm --no-deps collector validate
+    url="$(public_url)"
+    if [ -n "$url" ]; then
+      curl -fsS --connect-timeout 5 --max-time 10 "$url/api/v1/health"
+      echo
+    fi
+    echo "Doctor checks passed."
+    ;;
+  restart)
+    compose restart
+    wait_stack
+    ;;
+  start)
+    wait_stack
+    ;;
+  stop)
+    compose stop
+    ;;
+  rebuild)
+    compose build --pull
+    wait_stack
+    ;;
+  config)
+    compose config
+    ;;
+  url)
+    public_url
+    ;;
+  version)
+    cat VERSION
+    ;;
+  *)
+    cat <<'EOF_USAGE'
+Usage: gmd <command>
+
+  status       Show containers and API health
+  logs         Follow logs (optionally: gmd logs api|collector|caddy)
+  update       Run one collection cycle now
+  validate     Run SQLite integrity checks
+  stats        Print catalog statistics
+  backup       Create a consistent timestamped backup
+  restore      Validate and atomically restore a backup by filename
+  credentials  Update provider credentials without echoing them
+  doctor       Check Docker, Compose, database, and public API health
+  start        Start or recreate the stack
+  stop         Stop the stack
+  restart      Restart GMD services and wait for health
+  rebuild      Pull/build images and restart
+  config       Print the resolved Compose configuration
+  url          Print the configured public URL
+  version      Print the installed version
+EOF_USAGE
+    exit 2
+    ;;
+esac

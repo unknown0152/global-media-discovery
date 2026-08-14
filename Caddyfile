@@ -1,0 +1,53 @@
+http://:8081 {
+	respond /healthz "ok" 200
+	respond 404
+}
+
+{$GMD_SITE_ADDRESS:http://:80} {
+	encode zstd gzip
+
+	@api path /api/*
+	handle @api {
+		reverse_proxy api:8080
+	}
+
+	@ui path /ui/*
+	handle @ui {
+		reverse_proxy api:8080
+	}
+
+	@staticFiles path /assets/* /favicon.svg /manifest.webmanifest /sw.js /robots.txt
+	handle @staticFiles {
+		root * /srv/web
+		file_server
+	}
+
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		X-Permitted-Cross-Domain-Policies "none"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: https://image.tmdb.org https://artworks.thetvdb.com https://static.tvmaze.com; connect-src 'self'; style-src 'self'; script-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; object-src 'none'"
+	}
+
+	@versioned path /assets/* /favicon.svg
+	header @versioned Cache-Control "public, max-age=86400, immutable"
+
+	@mutable path / /index.html /sw.js /manifest.webmanifest /robots.txt
+	header @mutable Cache-Control "no-cache"
+
+	log {
+		output stdout
+		format json
+	}
+}

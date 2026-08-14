@@ -1,0 +1,12 @@
+.git
+.gitignore
+data
+secrets
+*.run
+*.tar.gz
+__pycache__
+.pytest_cache
+.coverage
+docs/screenshots
+node_modules
+package-lock.json

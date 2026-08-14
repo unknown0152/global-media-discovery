@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@source "../index.html";
+@source "../assets/app.js";
+@source "../../src/gmd/ui.py";
+
+@theme {
+  --color-gmd-ink: #171614;
+  --color-gmd-paper: #fffdf8;
+  --color-gmd-accent: #e64a31;
+  --color-gmd-signal: #1b8f66;
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@layer components {
+  .htmx-indicator {
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator {
+    opacity: 1;
+  }
+}

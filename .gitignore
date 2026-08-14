@@ -1,0 +1,26 @@
+# Runtime configuration and credentials
+.env
+.env.*
+!.env.example
+secrets/
+
+# Live and staged catalog data
+data/
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+
+# Build and test artifacts
+*.run
+*.tar.gz
+.test-output/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+node_modules/
+
+# Editor and operating-system files
+.DS_Store
+._*
+*.swp
+*.swo

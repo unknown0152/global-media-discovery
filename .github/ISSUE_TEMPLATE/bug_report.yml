@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible problem without sharing credentials or private data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Never include provider credentials, `.env` contents, or private database dumps.
+  - type: input
+    id: version
+    attributes:
+      label: GMD version
+      description: Output of `gmd version`.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open…\n2. Select…\n3. Observe…"
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Include relevant `gmd status` or `gmd doctor` output after removing sensitive data.
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, tokens, secret paths, and private catalog data.
+          required: true

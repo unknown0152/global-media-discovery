@@ -1,0 +1,96 @@
+# Changelog
+
+## 1.3.0 — 2026-08-14
+
+- Explain the exact meaning of each selected premiere date and distinguish
+  single-source, corroborated, disputed, and unverified dates.
+- Expose provider confidence, observation time, selected-date support, and
+  day differences while preserving every conflicting provider report.
+- Add read-only JSON and HTMX coverage views with date bounds, active dates,
+  yearly counts, country counts, provider counts, and an explicit scope caveat.
+- Show evidence-aware agreement labels on result cards and richer date
+  assessment details on desktop and mobile.
+- Add regression tests for weighted conflicting-date selection, evidence
+  annotations, coverage counts, and the new public routes.
+- Allow release builds to omit the optional preview image when no current
+  screenshot has been supplied.
+- Preserve Caddy's live lock directory during upgrades so ownership preflight
+  remains compatible with its protected lock files.
+- Add GitHub CI, automated tagged releases, dependency updates, structured
+  issue forms, a pull-request checklist, contribution guidance, and verified
+  public release documentation.
+- Synchronize the Python package, Compose, frontend, and installer versions
+  under a regression test.
+
+## 1.2.2 — 2026-08-14
+
+- Replace the browser-restored native origin-country select with an accessible
+  Tailwind button menu backed exclusively by application state.
+- Route country choices and Reset through the same deterministic state update.
+
+## 1.2.1 — 2026-08-14
+
+- Initialize HTMX after dynamically rendered title cards are attached to the
+  document, ensuring fragment actions are active in every supported browser.
+
+## 1.2.0 — 2026-08-14
+
+- Add a pinned Tailwind CSS 4.3 build pipeline and compiled production asset.
+- Vendor HTMX 4.0.0-beta6 locally and use read-only HTML fragment routes for
+  title details and metadata-source notices.
+- Keep JSON API and HTMX fragments uncached to prevent stale catalog data.
+- Add fragment escaping, URL validation, method enforcement, and browser tests.
+
+## 1.1.3 — 2026-08-14
+
+- Prevent empty conditional API responses by serving public JSON with
+  `Cache-Control: no-store` and a complete body on every GET.
+- Retry an unexpectedly empty browser response once without cache and show a
+  controlled error instead of exposing a JSON parser exception.
+
+## 1.1.2 — 2026-08-14
+
+- Use the native select `change` event exclusively so Firefox and Safari do
+  not reapply the previous facet value while a selection menu is closing.
+
+## 1.1.1 — 2026-08-14
+
+- Fix country and other facet selectors retaining stale DOM values after a
+  filter is cleared or changed.
+- Handle non-standard browser locale strings without aborting application
+  startup.
+- Refresh the frontend and service-worker cache keys.
+
+## 1.1.0 — 2026-08-13
+
+- Add stable status, statistics, search, filters, and date-range API routes.
+- Add event-type and confidence filtering plus global server-side sorting.
+- Strengthen catalog validation, automatic backup retention, atomic recovery,
+  and invalid/all-failed update protection.
+- Add due-aware restart scheduling, collector health checks, and periodic
+  credential-free TVmaze backfill.
+- Complete Today/Tomorrow/date-range navigation, mobile filter accessibility,
+  evidence warnings, artwork fallbacks, offline states, and PWA cache safety.
+- Bind unused IP-only HTTPS locally, run Caddy as a non-root user, and add
+  cross-origin hardening headers.
+- Expand the production regression suite from 23 to 34 tests.
+
+## 1.0.1 — 2026-08-13
+
+- Use standard SQLite rowid tables so catalog integrity checks work correctly
+  on the SQLite 3.40 runtime included with Debian 12 container images.
+- Add a schema compatibility regression test.
+- Allow release artifacts to be built with the BSD tar shipped by macOS.
+
+## 1.0.0 — 2026-08-13
+
+- Complete date-first TV premiere website.
+- Read-only WSGI API and SQLite query layer.
+- TMDB, TheTVDB, and TVmaze collectors.
+- Conservative identity resolution and source-date evidence.
+- Atomic catalog publication and built-in validation.
+- Responsive light/dark frontend and PWA shell.
+- Hardened Docker Compose deployment behind Caddy.
+- Self-extracting one-command Debian/Ubuntu installer.
+- Compact normalized August 2026 starter catalog.
+- Management CLI, backups, tests, and operator documentation.
