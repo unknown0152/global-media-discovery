@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    image: global-media-discovery-web:${GMD_VERSION:-2.0.0}
+    image: global-media-discovery-web:${GMD_VERSION:-2.1.0}
     environment:
       GMD_DATA_DIR: /data
       GMD_DATABASE_PATH: /data/catalog.sqlite3
@@ -44,7 +44,7 @@ services:
         max-file: "3"
 
   collector:
-    image: global-media-discovery-collector:${GMD_VERSION:-2.0.0}
+    image: global-media-discovery-collector:${GMD_VERSION:-2.1.0}
     build:
       context: .
       dockerfile: Dockerfile
@@ -71,13 +71,17 @@ services:
       GMD_REQUEST_TIMEOUT_SECONDS: ${GMD_REQUEST_TIMEOUT_SECONDS:-45}
       GMD_SOURCE_DELAY_MS: ${GMD_SOURCE_DELAY_MS:-220}
       GMD_COLLECTOR_RUN_ON_START: ${GMD_COLLECTOR_RUN_ON_START:-true}
+      GMD_ENABLE_SIMKL: ${GMD_ENABLE_SIMKL:-false}
+      GMD_SIMKL_PERMISSION_CONFIRMED: ${GMD_SIMKL_PERMISSION_CONFIRMED:-false}
       TMDB_TOKEN_FILE: /run/secrets/tmdb_token
       TVDB_KEY_FILE: /run/secrets/tvdb_key
+      SIMKL_CLIENT_ID_FILE: /run/secrets/simkl_client_id
     volumes:
       - ./data:/data
     secrets:
       - tmdb_token
       - tvdb_key
+      - simkl_client_id
     restart: unless-stopped
     init: true
     read_only: true
@@ -163,3 +167,5 @@ secrets:
     file: ./secrets/tmdb_token
   tvdb_key:
     file: ./secrets/tvdb_key
+  simkl_client_id:
+    file: ./secrets/simkl_client_id

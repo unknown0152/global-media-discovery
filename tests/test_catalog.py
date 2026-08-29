@@ -18,6 +18,7 @@ from gmd.db import (
     initialize_database,
     validate_database,
 )
+from gmd.models import EventObservation, ExternalID, NormalizedTitle
 from gmd.reconcile import CatalogWriter
 from gmd.query import CatalogQueries
 
@@ -216,6 +217,58 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual(
             self.connection.execute("SELECT COUNT(*) FROM titles").fetchone()[0], 2
         )
+
+    def test_two_existing_provider_ids_can_corroborate_simkl_identity(self) -> None:
+        canonical_id = self.writer.ingest(
+            normalize_tmdb(
+                {
+                    "id": 4001,
+                    "name": "Corroborated Show",
+                    "first_air_date": "2020-01-01",
+                    "origin_country": ["US"],
+                }
+            )
+        )
+        self.writer.ingest(
+            normalize_tvdb(
+                {
+                    "id": 5001,
+                    "name": "Corroborated Show",
+                    "firstAired": "2020-01-01",
+                    "originalCountry": "usa",
+                    "remoteIds": [
+                        {"sourceName": "TheMovieDB.com", "id": "4001"},
+                    ],
+                }
+            )
+        )
+        simkl = NormalizedTitle(
+            source="simkl",
+            source_id="6001",
+            title="Corroborated Show",
+            format="TV Series",
+            external_ids=[
+                ExternalID("simkl", "6001", "https://simkl.com/tv/6001/show"),
+                ExternalID("tmdb", "4001"),
+                ExternalID("tvdb", "5001"),
+            ],
+            events=[
+                EventObservation(
+                    event_type="season_premiere",
+                    date="2026-09-01",
+                    source_record_id="6001:season_premiere:2:1",
+                    season_number=2,
+                    episode_number=1,
+                )
+            ],
+        )
+        simkl_id = self.writer.ingest(simkl)
+        self.connection.commit()
+        self.assertEqual(simkl_id, canonical_id)
+        owner = self.connection.execute(
+            "SELECT title_id FROM identity_keys WHERE key = 'simkl:6001'"
+        ).fetchone()["title_id"]
+        self.assertEqual(owner, canonical_id)
 
     def test_tvdb_relative_artwork_is_made_absolute(self) -> None:
         normalized = normalize_tvdb(

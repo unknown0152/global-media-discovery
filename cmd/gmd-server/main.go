@@ -25,7 +25,7 @@ import (
 //go:embed all:dist
 var frontend embed.FS
 
-const version = "2.0.0"
+const version = "2.1.0"
 
 type app struct {
 	db           *sql.DB
@@ -159,7 +159,7 @@ func (a *app) serveAPI(w http.ResponseWriter, r *http.Request, requestID string)
 		payload = credits()
 	default:
 		if strings.HasPrefix(r.URL.Path, "/api/v1/titles/") {
-			payload, err = a.title(ctx, strings.TrimPrefix(r.URL.Path, "/api/v1/titles/"))
+			payload, err = a.title(ctx, strings.TrimPrefix(r.URL.Path, "/api/v1/titles/"), r.URL.Query().Get("event_id"))
 		} else {
 			err = &apiError{404, "not_found", "API route not found."}
 		}
@@ -225,7 +225,7 @@ func (a *app) meta(ctx context.Context) (any, error) {
 }
 
 func (a *app) status(ctx context.Context) (any, error) {
-	rows, err := a.db.QueryContext(ctx, "SELECT source,last_success_at,last_attempt_at,status FROM collection_state WHERE source IN ('tmdb','tvdb','tvmaze') ORDER BY source")
+	rows, err := a.db.QueryContext(ctx, "SELECT source,last_success_at,last_attempt_at,status FROM collection_state WHERE source IN ('tmdb','tvdb','tvmaze','simkl') ORDER BY source")
 	if err != nil {
 		return nil, err
 	}
@@ -380,18 +380,26 @@ func scanEvent(s scanner) (map[string]any, error) {
 	return item, nil
 }
 
-func (a *app) title(ctx context.Context, id string) (any, error) {
+func (a *app) title(ctx context.Context, id, eventID string) (any, error) {
 	if ok, _ := regexp.MatchString(`^[a-z0-9_]{8,80}$`, id); !ok {
 		return nil, &apiError{400, "invalid_title_id", "Invalid title identifier."}
 	}
+	if eventID != "" {
+		if ok, _ := regexp.MatchString(`^[a-z0-9_]{8,80}$`, eventID); !ok {
+			return nil, &apiError{400, "invalid_event_id", "Invalid event identifier."}
+		}
+	}
 	row := a.db.QueryRowContext(ctx, `SELECT COALESCE(e.id,''),COALESCE(e.event_type,''),COALESCE(e.event_date,''),COALESCE(e.season_number,-1),COALESCE(e.episode_number,-1),e.country_code,e.network_name,COALESCE(e.confidence,0),COALESCE(e.date_conflict,0),t.id,t.canonical_title,t.original_title,t.overview,t.original_language,t.format,t.status,t.runtime_minutes,t.poster_url,t.backdrop_url,t.confidence,
-	COALESCE((SELECT json_group_array(country_code) FROM (SELECT DISTINCT country_code FROM countries WHERE title_id=t.id ORDER BY country_code)),'[]'),COALESCE((SELECT json_group_array(genre) FROM (SELECT DISTINCT genre FROM genres WHERE title_id=t.id ORDER BY genre)),'[]'),COALESCE((SELECT json_group_array(json_object('name',network_name,'country',network_country,'type',network_type,'source',source)) FROM networks WHERE title_id=t.id),'[]'),COALESCE((SELECT json_group_array(json_object('source',source,'id',external_id,'url',source_url)) FROM identity_keys WHERE title_id=t.id),'[]'),COALESCE((SELECT json_group_array(json_object('source',source,'source_record_id',source_record_id,'reported_date',reported_date,'url',source_url,'confidence',confidence,'supports_selected_date',reported_date=e.event_date,'difference_days',CAST(julianday(reported_date)-julianday(e.event_date) AS INTEGER))) FROM event_evidence WHERE event_id=e.id),'[]'),COALESCE((SELECT json_group_array(json_object('flag',flag,'source',source,'detail',detail)) FROM quality_flags WHERE title_id=t.id),'[]') FROM titles t LEFT JOIN events e ON e.title_id=t.id AND e.event_type='series_premiere' WHERE t.id=? ORDER BY e.event_date LIMIT 1`, id)
+	COALESCE((SELECT json_group_array(country_code) FROM (SELECT DISTINCT country_code FROM countries WHERE title_id=t.id ORDER BY country_code)),'[]'),COALESCE((SELECT json_group_array(genre) FROM (SELECT DISTINCT genre FROM genres WHERE title_id=t.id ORDER BY genre)),'[]'),COALESCE((SELECT json_group_array(json_object('name',network_name,'country',network_country,'type',network_type,'source',source)) FROM networks WHERE title_id=t.id),'[]'),COALESCE((SELECT json_group_array(json_object('source',source,'id',external_id,'url',source_url)) FROM identity_keys WHERE title_id=t.id),'[]'),COALESCE((SELECT json_group_array(json_object('source',source,'source_record_id',source_record_id,'reported_date',reported_date,'url',source_url,'confidence',confidence,'supports_selected_date',reported_date=e.event_date,'difference_days',CAST(julianday(reported_date)-julianday(e.event_date) AS INTEGER))) FROM event_evidence WHERE event_id=e.id),'[]'),COALESCE((SELECT json_group_array(json_object('flag',flag,'source',source,'detail',detail)) FROM quality_flags WHERE title_id=t.id),'[]') FROM titles t LEFT JOIN events e ON e.title_id=t.id AND ((? != '' AND e.id=?) OR (? = '' AND e.event_type='series_premiere')) WHERE t.id=? ORDER BY e.event_date LIMIT 1`, eventID, eventID, eventID, id)
 	item, err := scanEvent(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, &apiError{404, "not_found", "Title not found."}
 	}
 	if err != nil {
 		return nil, err
+	}
+	if eventID != "" && item["event_id"] == "" {
+		return nil, &apiError{404, "not_found", "Event not found for this title."}
 	}
 	aliases, err := a.jsonRows(ctx, "SELECT alias,language,source FROM aliases WHERE title_id=? ORDER BY alias COLLATE NOCASE", id, []string{"name", "language", "source"})
 	if err != nil {
@@ -710,7 +718,7 @@ func (a *app) jsonRowsNoArg(ctx context.Context, q string, names []string) ([]an
 }
 
 func credits() any {
-	return map[string]any{"sources": []any{map[string]any{"id": "tmdb", "name": "TMDB", "url": "https://www.themoviedb.org/", "notice": "This product uses the TMDB API but is not endorsed or certified by TMDB."}, map[string]any{"id": "tvdb", "name": "TheTVDB", "url": "https://thetvdb.com/", "notice": "Metadata provided by TheTVDB."}, map[string]any{"id": "tvmaze", "name": "TVmaze", "url": "https://www.tvmaze.com/", "notice": "TVmaze data is used under CC BY-SA."}}}
+	return map[string]any{"sources": []any{map[string]any{"id": "tmdb", "name": "TMDB", "url": "https://www.themoviedb.org/", "notice": "This product uses the TMDB API but is not endorsed or certified by TMDB."}, map[string]any{"id": "tvdb", "name": "TheTVDB", "url": "https://thetvdb.com/", "notice": "Metadata provided by TheTVDB."}, map[string]any{"id": "tvmaze", "name": "TVmaze", "url": "https://www.tvmaze.com/", "notice": "TVmaze data is used under CC BY-SA."}, map[string]any{"id": "simkl", "name": "Simkl", "url": "https://simkl.com/", "notice": "Premiere and finale schedule evidence provided by Simkl; each Simkl record links to its source page."}}}
 }
 func bounded(r *http.Request, key string, max int, required bool) (string, error) {
 	v := r.URL.Query().Get(key)

@@ -74,6 +74,7 @@ Every known external identifier is stored as an independent key, for example:
 tmdb:329274
 tvdb:447580
 tvmaze:93356
+simkl:3232139
 imdb:tt43673968
 ```
 
@@ -82,18 +83,17 @@ quality-flagged rather than silently reassigned.
 
 ### Events
 
-The initial product publishes `series_premiere` events. The schema already
-supports season, episode, country, and network dimensions so later releases
-can add:
+The catalog publishes original series premieres and can additionally retain
+permissioned schedule evidence for:
 
 ```text
 season_premiere
-episode_release
-streaming_added
-streaming_removed
+midseason_finale
+season_finale
+series_finale
 ```
 
-without replacing the core title model.
+without replacing the core title model. Ordinary episode airings are excluded.
 
 ### Event evidence
 
@@ -133,7 +133,7 @@ rank may replace a weaker value while all aliases and evidence remain stored.
 ## Canonical date selection
 
 Source observations are weighted and the date with the strongest agreement is
-published. Ties prefer TVmaze, then TheTVDB, then TMDB. A conflict flag remains
+published. Ties prefer TVmaze, then TheTVDB, then Simkl, then TMDB. A conflict flag remains
 set whenever more than one date exists, even after a canonical date is chosen.
 
 ## Atomic publication
@@ -169,6 +169,11 @@ live catalog.
 - **TheTVDB:** complete paginated series scan on a configurable multi-day
   interval; extended records are fetched first for candidates needing identity
   enrichment.
+- **Simkl Calendar v2:** one cached rolling TV calendar request per enabled
+  cycle. Only series premieres, season premieres, and finale markers are
+  normalized. Collection requires a Client ID plus an explicit operator flag
+  confirming permission for retained public evidence; it is disabled by
+  default.
 
 The defaults favor a tiny VPS and can be adjusted in `.env`.
 

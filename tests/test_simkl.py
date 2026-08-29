@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 import tempfile
 import unittest
@@ -7,8 +8,10 @@ import unittest
 from gmd.collector.http import HTTPClient, redact_url
 from gmd.collector.simkl import (
     SIMKL_CATALOGS,
+    SimklCalendarCollector,
     SimklCalendarProbe,
     compare_with_catalog,
+    normalize_simkl_tv,
     validate_calendar_payload,
 )
 from gmd.collector.tmdb import normalize_tmdb
@@ -100,6 +103,106 @@ class SimklPayloadTests(unittest.TestCase):
         self.assertNotIn("public-id", safe)
         self.assertNotIn("secret", safe)
         self.assertIn("q=tv", safe)
+
+    def test_collector_sends_only_public_app_identification(self) -> None:
+        class FakeHTTP(HTTPClient):
+            def __init__(self) -> None:
+                super().__init__("test", min_delay_seconds=0)
+                self.params: object = None
+
+            def request_json(self, url: str, **kwargs: object) -> object:
+                self.assert_calendar_url = url
+                self.params = kwargs.get("params")
+                return calendar_payload()
+
+        http = FakeHTTP()
+        collector = SimklCalendarCollector(
+            "client-id",
+            http,
+            app_version="test-version",
+        )
+        collector.calendar("tv")
+        self.assertTrue(http.assert_calendar_url.endswith("/tv.json"))
+        self.assertEqual(
+            http.params,
+            {
+                "client_id": "client-id",
+                "app-name": "global-media-discovery",
+                "app-version": "test-version",
+            },
+        )
+        self.assertNotIn("secret", str(http.params).lower())
+
+    def test_normalizer_keeps_premieres_and_finales_not_regular_episodes(self) -> None:
+        payload = calendar_payload()
+        calendar = payload["calendar"]
+        metadata = payload["metadata"]
+        self.assertIsInstance(calendar, list)
+        self.assertIsInstance(metadata, dict)
+        calendar.extend(
+            [
+                {
+                    "simkl_id": 102,
+                    "date": "2026-08-30T18:00:00Z",
+                    "finale_type": None,
+                    "episode": {"season": 2, "episode": 1},
+                },
+                {
+                    "simkl_id": 103,
+                    "date": "2026-08-31T18:00:00Z",
+                    "finale_type": None,
+                    "episode": {"season": 3, "episode": 4},
+                },
+                {
+                    "simkl_id": 104,
+                    "date": "2026-08-31T20:00:00Z",
+                    "finale_type": 3,
+                },
+            ]
+        )
+        metadata["101"]["ids"]["slug"] = "known-show"
+        metadata["102"]["ids"]["slug"] = "unmatched-show"
+        metadata["103"] = {
+            "title": "Regular Episode Only",
+            "release_date": "2022-01-01",
+            "country": "gb",
+            "network": "Example GB",
+            "ids": {"simkl_id": 103, "slug": "regular-episode-only"},
+        }
+        metadata["104"] = {
+            "title": "Finale Without Episode Numbers",
+            "release_date": "2020-01-01",
+            "country": "ca",
+            "network": "Example CA",
+            "ids": {"simkl_id": 104, "slug": "finale-without-numbers"},
+        }
+        records = normalize_simkl_tv(
+            payload,
+            start=date(2026, 8, 1),
+            end=date(2026, 9, 30),
+        )
+        self.assertEqual(
+            {record.source_id for record in records},
+            {"101", "102", "104"},
+        )
+        events = {
+            event.event_type
+            for record in records
+            for event in record.events
+        }
+        self.assertEqual(
+            events,
+            {
+                "series_premiere",
+                "season_premiere",
+                "season_finale",
+                "series_finale",
+            },
+        )
+        known = next(record for record in records if record.source_id == "101")
+        self.assertEqual(known.source_url, "https://simkl.com/tv/101/known-show")
+        self.assertNotIn("poster", known.raw)
+        self.assertNotIn("ratings", known.raw)
 
 
 class SimklCatalogProbeTests(unittest.TestCase):

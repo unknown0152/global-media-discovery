@@ -1,24 +1,32 @@
-"""Private, non-publishing probes for Simkl Calendar v2 data.
+"""Simkl Calendar v2 evidence parsing and private coverage probes.
 
-This module deliberately does not integrate with ``CollectorPipeline``.  It is
-used to assess coverage and identity overlap before Simkl is considered as a
-production evidence source.
+Only premiere and finale evidence is normalized. Regular episode airings are
+deliberately ignored, and raw Simkl metadata is not used as a replacement for
+TMDB or TheTVDB.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 import sqlite3
 from typing import Any, Mapping
 
+from gmd import __version__
 from gmd.collector.http import HTTPClient
 from gmd.db import connect_ro
+from gmd.models import EventObservation, ExternalID, Network, NormalizedTitle
+from gmd.normalize import clean_text, normalize_country, normalize_language
 
 SIMKL_CALENDAR_BASE = "https://data.simkl.in/calendar/v2"
 SIMKL_CATALOGS = ("tv", "anime")
 MATCHABLE_ID_SOURCES = ("tmdb", "tvdb", "imdb")
+FINALE_EVENT_TYPES = {
+    1: "midseason_finale",
+    2: "season_finale",
+    3: "series_finale",
+}
 
 
 def _positive_integer(value: object, *, field: str) -> int:
@@ -35,6 +43,24 @@ def _utc_timestamp(value: object) -> str:
     except ValueError as error:
         raise ValueError("Simkl calendar date is invalid") from error
     return value
+
+
+def _calendar_day(value: object) -> str | None:
+    text = clean_text(value)[:10]
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        return None
+
+
+def _integer_or_none(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return number if number >= 0 else None
 
 
 def validate_calendar_payload(payload: object) -> dict[str, Any]:
@@ -87,8 +113,8 @@ def validate_calendar_payload(payload: object) -> dict[str, Any]:
         if episode is not None:
             if not isinstance(episode, Mapping):
                 raise ValueError("Simkl episode value must be an object")
-            season_number = episode.get("season")
-            episode_number = episode.get("episode")
+            season_number = _integer_or_none(episode.get("season"))
+            episode_number = _integer_or_none(episode.get("episode"))
             if episode_number == 1 and season_number in {None, 1}:
                 schedule_types["series_premiere_candidate"] += 1
             elif episode_number == 1:
@@ -101,7 +127,7 @@ def validate_calendar_payload(payload: object) -> dict[str, Any]:
         if schedule_key in schedule_keys:
             duplicate_entries += 1
         schedule_keys.add(schedule_key)
-        finale_type = raw_entry.get("finale_type")
+        finale_type = _integer_or_none(raw_entry.get("finale_type"))
         finale_counts[str(finale_type) if finale_type is not None else "none"] += 1
 
     orphan_metadata = len(metadata_ids - referenced_ids)
@@ -116,6 +142,247 @@ def validate_calendar_payload(payload: object) -> dict[str, Any]:
         "finale_types": dict(sorted(finale_counts.items())),
         "schedule_types": dict(sorted(schedule_types.items())),
     }
+
+
+class SimklCalendarCollector:
+    """Fetch the public, edge-cached Simkl Calendar v2 TV feed."""
+
+    def __init__(self, client_id: str, http: HTTPClient, *, app_version: str) -> None:
+        client_id = client_id.strip()
+        if not client_id or len(client_id) > 256 or any(
+            character.isspace() for character in client_id
+        ):
+            raise ValueError("a valid Simkl Client ID is required")
+        self.client_id = client_id
+        self.http = http
+        self.app_version = app_version
+
+    def calendar(self, catalog: str = "tv") -> Mapping[str, Any]:
+        if catalog not in SIMKL_CATALOGS:
+            raise ValueError(f"unsupported Simkl calendar: {catalog}")
+        payload = self.http.request_json(
+            f"{SIMKL_CALENDAR_BASE}/{catalog}.json",
+            params={
+                "client_id": self.client_id,
+                "app-name": "global-media-discovery",
+                "app-version": self.app_version,
+            },
+        )
+        validate_calendar_payload(payload)
+        if not isinstance(payload, Mapping):
+            raise ValueError("validated Simkl payload is unavailable")
+        return payload
+
+
+def normalize_simkl_tv(
+    payload: Mapping[str, Any],
+    *,
+    start: date,
+    end: date,
+) -> list[NormalizedTitle]:
+    """Normalize TV premieres/finales while excluding ordinary episodes."""
+    validate_calendar_payload(payload)
+    calendar = payload.get("calendar")
+    metadata = payload.get("metadata")
+    if not isinstance(calendar, list) or not isinstance(metadata, Mapping):
+        raise ValueError("validated Simkl payload is unavailable")
+
+    relevant: dict[int, list[Mapping[str, Any]]] = {}
+    for raw_entry in calendar:
+        if not isinstance(raw_entry, Mapping):
+            continue
+        simkl_id = _positive_integer(raw_entry.get("simkl_id"), field="calendar ID")
+        event_day = _calendar_day(raw_entry.get("date"))
+        if not event_day or not (start.isoformat() <= event_day <= end.isoformat()):
+            continue
+        episode = raw_entry.get("episode")
+        season_number = None
+        episode_number = None
+        if isinstance(episode, Mapping):
+            season_number = _integer_or_none(episode.get("season"))
+            episode_number = _integer_or_none(episode.get("episode"))
+        finale_type = _integer_or_none(raw_entry.get("finale_type"))
+        is_premiere = episode_number == 1
+        is_finale = finale_type in FINALE_EVENT_TYPES
+        if is_premiere or is_finale:
+            relevant.setdefault(simkl_id, []).append(raw_entry)
+
+    normalized: list[NormalizedTitle] = []
+    for simkl_id, entries in sorted(relevant.items()):
+        raw_metadata = metadata.get(str(simkl_id))
+        if not isinstance(raw_metadata, Mapping):
+            raise ValueError(f"Simkl metadata is missing for {simkl_id}")
+        normalized.append(
+            _normalize_simkl_title(
+                simkl_id,
+                raw_metadata,
+                entries,
+                start=start,
+                end=end,
+            )
+        )
+    return normalized
+
+
+def _normalize_simkl_title(
+    simkl_id: int,
+    metadata: Mapping[str, Any],
+    entries: list[Mapping[str, Any]],
+    *,
+    start: date,
+    end: date,
+) -> NormalizedTitle:
+    title = clean_text(metadata.get("title")) or f"Simkl {simkl_id}"
+    ids = metadata.get("ids")
+    if not isinstance(ids, Mapping):
+        raise ValueError(f"Simkl metadata IDs are missing for {simkl_id}")
+    slug = clean_text(ids.get("slug"))
+    source_url = f"https://simkl.com/tv/{simkl_id}/{slug}".rstrip("/")
+    country = normalize_country(metadata.get("country"))
+    language = normalize_language(metadata.get("original_language"))
+    network_name = clean_text(metadata.get("network"))
+
+    item = NormalizedTitle(
+        source="simkl",
+        source_id=str(simkl_id),
+        title=title,
+        original_language=language,
+        format="TV Series",
+        status=clean_text(metadata.get("status")) or None,
+        source_url=source_url,
+        countries={country} if country else set(),
+        networks=(
+            [Network(network_name, country, "Schedule evidence")]
+            if network_name
+            else []
+        ),
+        raw={
+            "simkl_id": simkl_id,
+            "title": title,
+            "ids": {
+                key: ids.get(key)
+                for key in ("simkl_id", "slug", *MATCHABLE_ID_SOURCES)
+                if ids.get(key) is not None
+            },
+            "country": country,
+            "original_language": language,
+            "network": network_name or None,
+            "calendar": [dict(entry) for entry in entries],
+        },
+    )
+    item.external_ids.append(ExternalID("simkl", str(simkl_id), source_url))
+    for source in MATCHABLE_ID_SOURCES:
+        value = clean_text(ids.get(source))
+        if not value:
+            continue
+        item.external_ids.append(ExternalID(source, value, _external_url(source, value)))
+
+    seen: set[tuple[str, int | None, int | None, str]] = set()
+    for entry in entries:
+        event_day = _calendar_day(entry.get("date"))
+        episode = entry.get("episode")
+        if not event_day:
+            continue
+        season_number = None
+        episode_number = None
+        if isinstance(episode, Mapping):
+            season_number = _integer_or_none(episode.get("season"))
+            episode_number = _integer_or_none(episode.get("episode"))
+        if episode_number == 1:
+            event_type = (
+                "series_premiere" if season_number in {None, 1} else "season_premiere"
+            )
+            _append_event(
+                item,
+                seen,
+                event_type=event_type,
+                event_day=event_day,
+                season_number=season_number,
+                episode_number=episode_number,
+                country=country,
+                network=network_name,
+                source_url=source_url,
+            )
+        finale_type = _integer_or_none(entry.get("finale_type"))
+        if finale_type in FINALE_EVENT_TYPES:
+            _append_event(
+                item,
+                seen,
+                event_type=FINALE_EVENT_TYPES[finale_type],
+                event_day=event_day,
+                season_number=season_number,
+                episode_number=episode_number,
+                country=country,
+                network=network_name,
+                source_url=source_url,
+            )
+
+    if not any(event.event_type == "series_premiere" for event in item.events):
+        release_day = _calendar_day(metadata.get("release_date"))
+        if release_day and start.isoformat() <= release_day <= end.isoformat():
+            _append_event(
+                item,
+                seen,
+                event_type="series_premiere",
+                event_day=release_day,
+                season_number=1,
+                episode_number=1,
+                country=country,
+                network=network_name,
+                source_url=source_url,
+            )
+
+    item.ensure_primary_id()
+    return item
+
+
+def _append_event(
+    item: NormalizedTitle,
+    seen: set[tuple[str, int | None, int | None, str]],
+    *,
+    event_type: str,
+    event_day: str,
+    season_number: int | None,
+    episode_number: int | None,
+    country: str | None,
+    network: str,
+    source_url: str,
+) -> None:
+    key = (event_type, season_number, episode_number, event_day)
+    if key in seen:
+        return
+    seen.add(key)
+    record_id = ":".join(
+        (
+            item.source_id,
+            event_type,
+            str(season_number if season_number is not None else "x"),
+            str(episode_number if episode_number is not None else "x"),
+        )
+    )
+    item.events.append(
+        EventObservation(
+            event_type=event_type,
+            date=event_day,
+            source_record_id=record_id,
+            source_url=source_url,
+            season_number=season_number,
+            episode_number=episode_number,
+            country=country,
+            network=network or None,
+            confidence=0.84,
+        )
+    )
+
+
+def _external_url(source: str, value: str) -> str | None:
+    if source == "tmdb":
+        return f"https://www.themoviedb.org/tv/{value}"
+    if source == "tvdb":
+        return f"https://thetvdb.com/dereferrer/series/{value}"
+    if source == "imdb":
+        return f"https://www.imdb.com/title/{value}/"
+    return None
 
 
 def _portable_identity_index(connection: sqlite3.Connection) -> dict[str, str]:
@@ -137,9 +404,11 @@ def _premiere_candidate_ids(payload: Mapping[str, Any]) -> set[int]:
         if not isinstance(entry, Mapping):
             continue
         episode = entry.get("episode")
-        if not isinstance(episode, Mapping) or episode.get("episode") != 1:
+        if not isinstance(episode, Mapping) or _integer_or_none(
+            episode.get("episode")
+        ) != 1:
             continue
-        if episode.get("season") not in {None, 1}:
+        if _integer_or_none(episode.get("season")) not in {None, 1}:
             continue
         simkl_id = entry.get("simkl_id")
         if isinstance(simkl_id, int) and not isinstance(simkl_id, bool):
@@ -242,7 +511,9 @@ class SimklCalendarProbe:
 
     def __init__(self, client_id: str, http: HTTPClient) -> None:
         client_id = client_id.strip()
-        if not client_id or len(client_id) > 256 or any(char.isspace() for char in client_id):
+        if not client_id or len(client_id) > 256 or any(
+            character.isspace() for character in client_id
+        ):
             raise ValueError("a valid Simkl Client ID is required")
         self.client_id = client_id
         self.http = http
@@ -259,7 +530,7 @@ class SimklCalendarProbe:
                     params={
                         "client_id": self.client_id,
                         "app-name": "global-media-discovery",
-                        "app-version": "2.0.0",
+                        "app-version": __version__,
                     },
                 )
                 validation = validate_calendar_payload(payload)

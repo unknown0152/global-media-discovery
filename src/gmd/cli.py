@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 from wsgiref.simple_server import make_server
 
+from gmd import __version__
 from gmd.api import ReadOnlyAPI
 from gmd.collector.pipeline import CollectorPipeline
 from gmd.collector.http import HTTPClient
@@ -137,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         catalogs = SIMKL_CATALOGS if args.catalog == "both" else (args.catalog,)
         client = HTTPClient(
-            "global-media-discovery/2.0.0",
+            f"global-media-discovery/{__version__}",
             timeout=settings.request_timeout_seconds,
             min_delay_seconds=settings.source_delay_ms / 1000,
         )

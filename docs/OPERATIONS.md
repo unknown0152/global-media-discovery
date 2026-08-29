@@ -12,7 +12,7 @@
 ## Install or upgrade
 
 ```bash
-sudo bash global-media-discovery-installer-1.4.0.run
+sudo bash global-media-discovery-installer-2.1.0.run
 ```
 
 The installer is idempotent. It stops the previous stack, copies new code,
@@ -32,7 +32,8 @@ health endpoint.
 │   └── backups/
 └── secrets/
     ├── tmdb_token
-    └── tvdb_key
+    ├── tvdb_key
+    └── simkl_client_id
 ```
 
 `.env` and secret files are mode `0600`/`0400`. The data directory is owned by
@@ -112,6 +113,32 @@ The command prompts without echoing values, preserves a credential when its
 prompt is left blank, fixes ownership and permissions, and recreates the
 services. Run `gmd update` afterward for an immediate collection cycle. Avoid
 placing actual keys in public issue reports, command history, or screenshots.
+
+## Private Simkl test and permission gate
+
+Simkl Calendar v2 support uses only the public Client ID. The Client Secret and
+user OAuth tokens are neither requested nor mounted. Test coverage against the
+live catalog without publishing anything:
+
+```bash
+sudo gmd simkl test
+sudo gmd simkl status
+```
+
+Production collection remains disabled until Simkl has approved GMD's
+historical retention and normalized public-evidence use case. After receiving
+that approval, record the decision explicitly and run a normal atomic update:
+
+```bash
+sudo gmd simkl enable --permission-confirmed
+sudo gmd update
+```
+
+Disable new collection while retaining already validated evidence with:
+
+```bash
+sudo gmd simkl disable
+```
 
 ## Connect Seerr
 

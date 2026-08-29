@@ -206,10 +206,18 @@ fi
 
 existing_tmdb="$INSTALL_DIR/secrets/tmdb_token"
 existing_tvdb="$INSTALL_DIR/secrets/tvdb_key"
+existing_simkl="$INSTALL_DIR/secrets/simkl_client_id"
 TMDB_TOKEN="${TMDB_TOKEN:-}"
 TVDB_KEY="${TVDB_KEY:-}"
+SIMKL_CLIENT_ID="${SIMKL_CLIENT_ID:-}"
 ask_secret TMDB_TOKEN "TMDB Read Access Token" "$existing_tmdb"
 ask_secret TVDB_KEY "TheTVDB API key" "$existing_tvdb"
+ask_secret SIMKL_CLIENT_ID "Simkl Client ID (not the Client Secret)" "$existing_simkl"
+
+SIMKL_ENABLED="$(existing_env_value GMD_ENABLE_SIMKL)"
+SIMKL_PERMISSION_CONFIRMED="$(existing_env_value GMD_SIMKL_PERMISSION_CONFIRMED)"
+SIMKL_ENABLED="${SIMKL_ENABLED:-false}"
+SIMKL_PERMISSION_CONFIRMED="${SIMKL_PERMISSION_CONFIRMED:-false}"
 
 if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/compose.yaml" ]; then
   log "Stopping the existing installation while preserving catalog data and secrets."
@@ -247,10 +255,13 @@ chmod 0750 "$INSTALL_DIR/data" "$INSTALL_DIR/data/backups"
 
 printf '%s' "$TMDB_TOKEN" > "$INSTALL_DIR/secrets/tmdb_token"
 printf '%s' "$TVDB_KEY" > "$INSTALL_DIR/secrets/tvdb_key"
+printf '%s' "$SIMKL_CLIENT_ID" > "$INSTALL_DIR/secrets/simkl_client_id"
 chown 65532:65532 "$INSTALL_DIR/secrets/tmdb_token" \
-  "$INSTALL_DIR/secrets/tvdb_key"
+  "$INSTALL_DIR/secrets/tvdb_key" \
+  "$INSTALL_DIR/secrets/simkl_client_id"
 chmod 0400 "$INSTALL_DIR/secrets/tmdb_token" \
-  "$INSTALL_DIR/secrets/tvdb_key"
+  "$INSTALL_DIR/secrets/tvdb_key" \
+  "$INSTALL_DIR/secrets/simkl_client_id"
 chmod 0700 "$INSTALL_DIR/secrets"
 
 cat > "$INSTALL_DIR/.env" <<EOF_ENV
@@ -271,6 +282,8 @@ GMD_TMDB_DETAIL_LIMIT='1200'
 GMD_TVMAZE_RECENT_DAYS='30'
 GMD_TVMAZE_BACKFILL_DAYS='365'
 GMD_TVMAZE_BACKFILL_INTERVAL_DAYS='7'
+GMD_ENABLE_SIMKL='$SIMKL_ENABLED'
+GMD_SIMKL_PERMISSION_CONFIRMED='$SIMKL_PERMISSION_CONFIRMED'
 GMD_BACKUP_RETENTION='14'
 GMD_MAX_QUERY_DAYS='366'
 GMD_MAX_PAGE_SIZE='200'

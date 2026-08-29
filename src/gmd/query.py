@@ -325,7 +325,7 @@ class CatalogQueries:
                 },
             }
 
-    def title(self, title_id: str) -> dict[str, Any] | None:
+    def title(self, title_id: str, event_id: str = "") -> dict[str, Any] | None:
         with connect_ro(self.database_path) as connection:
             row = connection.execute(
                 """
@@ -352,14 +352,18 @@ class CatalogQueries:
                     t.confidence AS title_confidence
                 FROM titles t
                 LEFT JOIN events e
-                  ON e.title_id = t.id AND e.event_type = 'series_premiere'
+                  ON e.title_id = t.id
+                 AND ((? != '' AND e.id = ?)
+                   OR (? = '' AND e.event_type = 'series_premiere'))
                 WHERE t.id = ?
                 ORDER BY e.event_date
                 LIMIT 1
                 """,
-                (title_id,),
+                (event_id, event_id, event_id, title_id),
             ).fetchone()
             if not row:
+                return None
+            if event_id and not row["event_id"]:
                 return None
             item = self._base_event(row)
             self._enrich(connection, [item], include_aliases=True)
@@ -486,7 +490,7 @@ class CatalogQueries:
                 """
                 SELECT source, last_success_at, last_attempt_at, status
                 FROM collection_state
-                WHERE source IN ('tmdb', 'tvdb', 'tvmaze')
+                WHERE source IN ('tmdb', 'tvdb', 'tvmaze', 'simkl')
                 ORDER BY source
                 """
             ).fetchall()
@@ -690,6 +694,15 @@ class CatalogQueries:
                     "name": "TVmaze",
                     "url": "https://www.tvmaze.com/",
                     "notice": "TVmaze data is used under CC BY-SA.",
+                },
+                {
+                    "id": "simkl",
+                    "name": "Simkl",
+                    "url": "https://simkl.com/",
+                    "notice": (
+                        "Premiere and finale schedule evidence provided by Simkl; "
+                        "each Simkl record links to its source page."
+                    ),
                 },
             ]
         }

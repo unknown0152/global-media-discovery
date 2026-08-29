@@ -45,6 +45,8 @@ obscure and zero-vote titles.
 - Optional authenticated handoff to Seerr for titles with a verified TMDB ID;
   Seerr retains login, permissions, quotas, season selection, and approval.
 - Scheduled TMDB, TheTVDB, and credential-free TVmaze collection.
+- Permission-gated Simkl Calendar v2 evidence for TV series/season premieres
+  and finales; ordinary episode airings are intentionally excluded.
 - Validated staging databases and atomic SQLite publication.
 - Built-in backup, restore, integrity checking, health, statistics, and logs.
 
@@ -55,7 +57,7 @@ installer and checksums from the latest GitHub release, then verify before
 running it:
 
 ```bash
-version=2.0.0
+version=2.1.0
 base="https://github.com/unknown0152/global-media-discovery/releases/download/v${version}"
 curl -fLO "${base}/global-media-discovery-installer-${version}.run"
 curl -fLO "${base}/global-media-discovery-SHA256SUMS-${version}.txt"
@@ -65,7 +67,7 @@ sudo bash "global-media-discovery-installer-${version}.run"
 ```
 
 The installer asks for the site name, optional domain, update frequency, and
-optional TMDB/TheTVDB credentials. Leave the domain blank to serve HTTP on the
+optional TMDB/TheTVDB credentials and Simkl Client ID. Leave the domain blank to serve HTTP on the
 VPS IP at port `8080`; provide a domain already pointing at the VPS for
 Caddy-managed HTTPS.
 
@@ -82,7 +84,7 @@ sudo \
   GMD_UPDATE_INTERVAL_HOURS=12 \
   TMDB_TOKEN='replace-me' \
   TVDB_KEY='replace-me' \
-  bash global-media-discovery-installer-2.0.0.run
+  bash global-media-discovery-installer-2.1.0.run
 ```
 
 Interactive credential entry is safer on shared machines because exported or
@@ -95,6 +97,7 @@ records.
 TMDB ─────┐
 TheTVDB ──┼── scheduled collector ── identity/evidence resolver
 TVmaze ───┘                              │
+Simkl* ───┘                              │
                                          ▼
                                   staging SQLite DB
                                   validate + fsync
@@ -103,6 +106,8 @@ TVmaze ───┘                              │
                                          ▼
 Caddy ── Go 1.27 server ── React UI + GET-only API ── live SQLite DB (read-only)
 Browser ── verified TMDB title handoff ── Seerr login and request flow (optional)
+
+* Simkl is disabled until the operator records provider permission explicitly.
 ```
 
 Only the collector receives provider secrets and a writable catalog mount. The
@@ -139,6 +144,8 @@ sudo gmd stats               # catalog counts, bounds, and last run
 sudo gmd backup              # create a private consistent backup
 sudo gmd restore NAME        # validate and atomically restore a backup
 sudo gmd credentials         # securely update provider credentials
+sudo gmd simkl test          # private, read-only Calendar v2 coverage probe
+sudo gmd simkl status        # show credential and permission-gate state
 sudo gmd doctor              # end-to-end deployment checks
 sudo gmd restart             # restart GMD services and wait for health
 sudo gmd url                 # print the configured public URL
@@ -155,6 +162,8 @@ sudo gmd url                 # print the configured public URL
 7. Conflicts and suspicious identity claims are flagged, not discarded.
 8. A staging catalog must pass integrity, foreign-key, calendar-date, evidence,
    schema, and count validation before atomic publication.
+9. Simkl regular episodes are discarded; conflicting provider IDs remain
+   unresolved for manual review.
 
 The bundled starter database contains 257 normalized demonstration titles and
 345 evidence records for 1–13 August 2026. Scheduled collection extends the

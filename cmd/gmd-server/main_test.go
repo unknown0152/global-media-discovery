@@ -62,6 +62,21 @@ func TestStableRoutesAndHead(t *testing.T) {
 	}
 }
 
+func TestCreditsIncludeSimklAttribution(t *testing.T) {
+	a := testApp(t)
+	status, _, payload := request(t, a, http.MethodGet, "/api/v1/credits")
+	if status != http.StatusOK {
+		t.Fatal(payload)
+	}
+	for _, source := range payload["sources"].([]any) {
+		item := source.(map[string]any)
+		if item["id"] == "simkl" && strings.Contains(item["notice"].(string), "Simkl") {
+			return
+		}
+	}
+	t.Fatal("Simkl attribution is missing")
+}
+
 func TestPublicAPIIsReadOnly(t *testing.T) {
 	a := testApp(t)
 	for _, method := range []string{"POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE"} {
@@ -96,6 +111,25 @@ func TestEventsFiltersPaginationAndEvidence(t *testing.T) {
 	status, _, filtered := request(t, a, "GET", "/api/v1/events?from=2026-08-13&to=2026-08-13&country="+country)
 	if status != 200 || filtered["pagination"].(map[string]any)["total"].(float64) < 1 {
 		t.Fatalf("country filter failed: %v", filtered)
+	}
+}
+
+func TestTitleDetailSelectsTheRequestedEvent(t *testing.T) {
+	a := testApp(t)
+	status, _, payload := request(t, a, http.MethodGet, "/api/v1/events?from=2026-08-13&to=2026-08-13&limit=1")
+	if status != 200 {
+		t.Fatal(payload)
+	}
+	item := payload["items"].([]any)[0].(map[string]any)
+	titleID := item["title"].(map[string]any)["id"].(string)
+	eventID := item["event_id"].(string)
+	status, _, detail := request(t, a, http.MethodGet, "/api/v1/titles/"+titleID+"?event_id="+eventID)
+	if status != 200 || detail["event_id"] != eventID {
+		t.Fatalf("event-specific detail failed: status=%d detail=%v", status, detail)
+	}
+	status, _, invalid := request(t, a, http.MethodGet, "/api/v1/titles/"+titleID+"?event_id=bad!")
+	if status != 400 || invalid["error"].(map[string]any)["code"] != "invalid_event_id" {
+		t.Fatalf("invalid event id was not rejected: status=%d payload=%v", status, invalid)
 	}
 }
 

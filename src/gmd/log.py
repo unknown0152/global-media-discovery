@@ -31,7 +31,10 @@ def configure_logging(level: str = "INFO") -> None:
     root.handlers.clear()
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
 
-    handler = logging.StreamHandler(sys.stdout)
+    # Keep machine-readable command results on stdout. Container runtimes still
+    # collect stderr, while operators can safely pipe JSON from commands such as
+    # ``gmd update`` and ``gmd stats`` into jq.
+    handler = logging.StreamHandler(sys.stderr)
     if os.getenv("GMD_LOG_FORMAT", "json").lower() == "text":
         handler.setFormatter(
             logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
