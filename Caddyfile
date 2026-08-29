@@ -23,7 +23,7 @@ http://:8081 {
 		Cross-Origin-Opener-Policy "same-origin"
 		Cross-Origin-Resource-Policy "same-origin"
 		X-Permitted-Cross-Domain-Policies "none"
-		Content-Security-Policy "default-src 'self'; img-src 'self' data: https://image.tmdb.org https://artworks.thetvdb.com https://static.tvmaze.com; connect-src 'self'; style-src 'self'; script-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; object-src 'none'"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: https://image.tmdb.org https://artworks.thetvdb.com https://static.tvmaze.com https://us.simkl.in; connect-src 'self'; style-src 'self'; script-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; object-src 'none'"
 	}
 
 	@versioned path /assets/* /favicon.svg

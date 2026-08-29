@@ -129,11 +129,11 @@ case "$command" in
     case "$action" in
       status)
         enabled="$(sed -n "s/^GMD_ENABLE_SIMKL='\(.*\)'$/\1/p" .env | head -n1)"
-        confirmed="$(sed -n "s/^GMD_SIMKL_PERMISSION_CONFIRMED='\(.*\)'$/\1/p" .env | head -n1)"
+        accepted="$(sed -n "s/^GMD_SIMKL_RULES_ACCEPTED='\(.*\)'$/\1/p" .env | head -n1)"
         [ -s secrets/simkl_client_id ] && configured=yes || configured=no
         echo "Simkl Client ID configured: $configured"
         echo "Simkl publication enabled: ${enabled:-false}"
-        echo "Simkl permission confirmed: ${confirmed:-false}"
+        echo "Simkl API rules accepted: ${accepted:-false}"
         ;;
       test)
         [ -s secrets/simkl_client_id ] || {
@@ -143,16 +143,16 @@ case "$command" in
         compose run --rm --no-deps collector simkl-probe --catalog tv
         ;;
       enable)
-        [ "${2:-}" = "--permission-confirmed" ] || {
-          echo "Usage: gmd simkl enable --permission-confirmed" >&2
-          echo "Enable only after Simkl approves historical retention and normalized public evidence." >&2
+        [ "${2:-}" = "--api-rules-accepted" ] || {
+          echo "Usage: gmd simkl enable --api-rules-accepted" >&2
+          echo "Enable only after reading https://api.simkl.org/api-rules and confirming license eligibility." >&2
           exit 2
         }
         [ -s secrets/simkl_client_id ] || {
           echo "Simkl Client ID is not configured. Run: sudo gmd credentials" >&2
           exit 1
         }
-        set_env_value GMD_SIMKL_PERMISSION_CONFIRMED true
+        set_env_value GMD_SIMKL_RULES_ACCEPTED true
         set_env_value GMD_ENABLE_SIMKL true
         wait_stack
         echo "Simkl TV evidence enabled. Run 'sudo gmd update' to collect now."
@@ -163,7 +163,7 @@ case "$command" in
         echo "Simkl evidence collection disabled. Existing validated evidence is retained."
         ;;
       *)
-        echo "Usage: gmd simkl [status|test|enable --permission-confirmed|disable]" >&2
+        echo "Usage: gmd simkl [status|test|enable --api-rules-accepted|disable]" >&2
         exit 2
         ;;
     esac

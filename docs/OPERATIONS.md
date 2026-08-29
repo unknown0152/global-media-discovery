@@ -12,7 +12,7 @@
 ## Install or upgrade
 
 ```bash
-sudo bash global-media-discovery-installer-2.1.0.run
+sudo bash global-media-discovery-installer-2.1.1.run
 ```
 
 The installer is idempotent. It stops the previous stack, copies new code,
@@ -114,7 +114,7 @@ prompt is left blank, fixes ownership and permissions, and recreates the
 services. Run `gmd update` afterward for an immediate collection cycle. Avoid
 placing actual keys in public issue reports, command history, or screenshots.
 
-## Private Simkl test and permission gate
+## Private Simkl test and API-rules gate
 
 Simkl Calendar v2 support uses only the public Client ID. The Client Secret and
 user OAuth tokens are neither requested nor mounted. Test coverage against the
@@ -125,12 +125,14 @@ sudo gmd simkl test
 sudo gmd simkl status
 ```
 
-Production collection remains disabled until Simkl has approved GMD's
-historical retention and normalized public-evidence use case. After receiving
-that approval, record the decision explicitly and run a normal atomic update:
+GMD uses the public, edge-cached Calendar v2 file and never calls the OAuth
+`/sync/*` endpoints, so watchlist activity polling and `date_from` do not apply.
+Before enabling, read Simkl's API rules and confirm this deployment is
+non-commercial, below Simkl's published revenue threshold, or appropriately
+licensed. Then record acceptance explicitly and run a normal atomic update:
 
 ```bash
-sudo gmd simkl enable --permission-confirmed
+sudo gmd simkl enable --api-rules-accepted
 sudo gmd update
 ```
 

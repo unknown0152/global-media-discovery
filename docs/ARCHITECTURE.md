@@ -84,7 +84,7 @@ quality-flagged rather than silently reassigned.
 ### Events
 
 The catalog publishes original series premieres and can additionally retain
-permissioned schedule evidence for:
+rules-compliant schedule evidence for:
 
 ```text
 season_premiere
@@ -171,9 +171,10 @@ live catalog.
   enrichment.
 - **Simkl Calendar v2:** one cached rolling TV calendar request per enabled
   cycle. Only series premieres, season premieres, and finale markers are
-  normalized. Collection requires a Client ID plus an explicit operator flag
-  confirming permission for retained public evidence; it is disabled by
-  default.
+  normalized. GMD never calls Simkl's OAuth `/sync/*` endpoints, so the
+  watchlist activity/`date_from` loop does not apply. Collection requires a
+  Client ID plus explicit operator acceptance of the API rules and licensing
+  threshold; it is disabled by default.
 
 The defaults favor a tiny VPS and can be adjusted in `.env`.
 

@@ -1,6 +1,6 @@
 [project]
 name = "global-media-discovery"
-version = "2.1.0"
+version = "2.1.1"
 description = "A date-first, read-only worldwide television premiere catalog"
 requires-python = ">=3.13"
 dependencies = ["gunicorn==23.0.0"]

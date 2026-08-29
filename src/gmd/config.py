@@ -80,7 +80,7 @@ class Settings:
     tmdb_token: str
     tvdb_key: str
     simkl_client_id: str
-    simkl_permission_confirmed: bool
+    simkl_rules_accepted: bool
     update_interval_hours: int
     past_days: int
     future_days: int
@@ -128,7 +128,10 @@ def load_settings() -> Settings:
         tmdb_token=_read_secret("TMDB_TOKEN", "TMDB_TOKEN_FILE"),
         tvdb_key=_read_secret("TVDB_KEY", "TVDB_KEY_FILE"),
         simkl_client_id=_read_secret("SIMKL_CLIENT_ID", "SIMKL_CLIENT_ID_FILE"),
-        simkl_permission_confirmed=_bool("GMD_SIMKL_PERMISSION_CONFIRMED", False),
+        simkl_rules_accepted=_bool(
+            "GMD_SIMKL_RULES_ACCEPTED",
+            _bool("GMD_SIMKL_PERMISSION_CONFIRMED", False),
+        ),
         update_interval_hours=_int(
             "GMD_UPDATE_INTERVAL_HOURS", 24, minimum=1, maximum=168
         ),

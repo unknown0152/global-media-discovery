@@ -45,7 +45,7 @@ obscure and zero-vote titles.
 - Optional authenticated handoff to Seerr for titles with a verified TMDB ID;
   Seerr retains login, permissions, quotas, season selection, and approval.
 - Scheduled TMDB, TheTVDB, and credential-free TVmaze collection.
-- Permission-gated Simkl Calendar v2 evidence for TV series/season premieres
+- Rules-gated Simkl Calendar v2 evidence for TV series/season premieres
   and finales; ordinary episode airings are intentionally excluded.
 - Validated staging databases and atomic SQLite publication.
 - Built-in backup, restore, integrity checking, health, statistics, and logs.
@@ -57,7 +57,7 @@ installer and checksums from the latest GitHub release, then verify before
 running it:
 
 ```bash
-version=2.1.0
+version=2.1.1
 base="https://github.com/unknown0152/global-media-discovery/releases/download/v${version}"
 curl -fLO "${base}/global-media-discovery-installer-${version}.run"
 curl -fLO "${base}/global-media-discovery-SHA256SUMS-${version}.txt"
@@ -84,7 +84,7 @@ sudo \
   GMD_UPDATE_INTERVAL_HOURS=12 \
   TMDB_TOKEN='replace-me' \
   TVDB_KEY='replace-me' \
-  bash global-media-discovery-installer-2.1.0.run
+  bash global-media-discovery-installer-2.1.1.run
 ```
 
 Interactive credential entry is safer on shared machines because exported or
@@ -107,7 +107,8 @@ Simkl* ───┘                              │
 Caddy ── Go 1.27 server ── React UI + GET-only API ── live SQLite DB (read-only)
 Browser ── verified TMDB title handoff ── Seerr login and request flow (optional)
 
-* Simkl is disabled until the operator records provider permission explicitly.
+* Simkl is enabled only after the operator accepts its API rules and confirms
+  non-commercial/commercial-license eligibility.
 ```
 
 Only the collector receives provider secrets and a writable catalog mount. The
@@ -145,7 +146,7 @@ sudo gmd backup              # create a private consistent backup
 sudo gmd restore NAME        # validate and atomically restore a backup
 sudo gmd credentials         # securely update provider credentials
 sudo gmd simkl test          # private, read-only Calendar v2 coverage probe
-sudo gmd simkl status        # show credential and permission-gate state
+sudo gmd simkl status        # show credential and API-rules gate state
 sudo gmd doctor              # end-to-end deployment checks
 sudo gmd restart             # restart GMD services and wait for health
 sudo gmd url                 # print the configured public URL

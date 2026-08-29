@@ -369,7 +369,7 @@ class ProductionBehaviorTests(unittest.TestCase):
         self.assertIn("error", result["source_results"]["tmdb"])
         self.assertEqual(validate_database(self.database)["integrity"], "ok")
 
-    def test_simkl_publication_requires_explicit_permission_gate(self) -> None:
+    def test_simkl_publication_requires_explicit_rules_gate(self) -> None:
         settings = replace(
             self.settings,
             enable_tmdb=False,
@@ -377,7 +377,7 @@ class ProductionBehaviorTests(unittest.TestCase):
             enable_tvmaze=False,
             enable_simkl=True,
             simkl_client_id="configured-for-test",
-            simkl_permission_confirmed=False,
+            simkl_rules_accepted=False,
         )
         before = hashlib.sha256(self.database.read_bytes()).hexdigest()
         with patch.object(CollectorPipeline, "_update_simkl") as update_simkl:
@@ -386,11 +386,11 @@ class ProductionBehaviorTests(unittest.TestCase):
         self.assertEqual(result["status"], "degraded")
         self.assertEqual(
             result["source_results"]["simkl"],
-            "disabled: permission not confirmed",
+            "disabled: API rules not accepted",
         )
         self.assertEqual(before, hashlib.sha256(self.database.read_bytes()).hexdigest())
 
-    def test_permissioned_simkl_source_is_isolated_and_publishable(self) -> None:
+    def test_rules_accepted_simkl_source_is_isolated_and_publishable(self) -> None:
         settings = replace(
             self.settings,
             enable_tmdb=False,
@@ -398,7 +398,7 @@ class ProductionBehaviorTests(unittest.TestCase):
             enable_tvmaze=False,
             enable_simkl=True,
             simkl_client_id="configured-for-test",
-            simkl_permission_confirmed=True,
+            simkl_rules_accepted=True,
         )
         metrics = {
             "relevant_titles": 2,

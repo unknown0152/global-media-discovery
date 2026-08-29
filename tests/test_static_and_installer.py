@@ -39,6 +39,13 @@ class StaticAndInstallerTests(unittest.TestCase):
         self.assertIn("navigate({ search: { view: 'day', date: today } })", self.app)
         self.assertNotIn("selected={", self.app)
 
+    def test_simkl_evidence_has_visible_per_item_attribution(self) -> None:
+        caddy = (self.root / "Caddyfile").read_text(encoding="utf-8")
+        self.assertIn("View ${item.title.name} on Simkl", self.app)
+        self.assertIn("More on Simkl ↗", self.app)
+        self.assertIn("https://us.simkl.in/img_favicon/v2/favicon-192x192.png", self.app)
+        self.assertIn("https://us.simkl.in", caddy)
+
     def test_go_serves_frontend_and_read_only_api(self) -> None:
         source = (self.root / "cmd/gmd-server/main.go").read_text(encoding="utf-8")
         compose = (self.root / "compose.yaml").read_text(encoding="utf-8")
