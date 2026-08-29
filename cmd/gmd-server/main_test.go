@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -160,5 +161,19 @@ func TestFrontendCountryAndResetUseRouterState(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing deterministic state contract %q", want)
 		}
+	}
+}
+
+func TestWebManifestHasTheCorrectMediaType(t *testing.T) {
+	a := testApp(t)
+	dist, err := fs.Sub(frontend, "dist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.static = http.FileServerFS(dist)
+	recorder := httptest.NewRecorder()
+	a.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/manifest.webmanifest", nil))
+	if got := recorder.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/manifest+json") {
+		t.Fatalf("manifest content type=%q", got)
 	}
 }

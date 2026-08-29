@@ -110,6 +110,9 @@ func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-cache")
+	if strings.HasSuffix(r.URL.Path, ".webmanifest") {
+		w.Header().Set("Content-Type", "application/manifest+json; charset=utf-8")
+	}
 	if r.URL.Path == "/" || !strings.Contains(path.Base(r.URL.Path), ".") {
 		r.URL.Path = "/"
 	}

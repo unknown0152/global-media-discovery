@@ -16,6 +16,8 @@
   confirms provider permission for retention and normalized public evidence.
 - Keep structured logs on stderr so management-command stdout remains valid
   JSON for automation and operator tooling.
+- Serve the PWA manifest with its registered media type; no service worker is
+  registered, so API responses cannot be retained in an offline cache.
 
 ## 2.0.0 — 2026-08-29
 
