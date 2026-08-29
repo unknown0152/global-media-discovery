@@ -9,10 +9,11 @@ publication. The public application remains read-only.
 
 - `src/gmd/collector/`: source clients, normalization, scheduling.
 - `src/gmd/reconcile.py`: conservative canonical identity and evidence writes.
-- `src/gmd/query.py`: parameterized read-only SQL queries.
-- `src/gmd/api.py`: GET/HEAD-only WSGI transport and validation.
+- `cmd/gmd-server/`: Go 1.27 GET/HEAD-only API and embedded frontend server.
+- `frontend/`: React 19.2, strict TypeScript 7, Vite 8, and TanStack client.
+- `src/gmd/query.py`: legacy-compatible Python query contract tests.
 - `src/gmd/db.py`: schema lifecycle, validation, backup, atomic publication.
-- `web/`: dependency-free frontend.
+- `web/`: archived 1.x frontend retained only for upgrade history.
 - `seed/catalog.sqlite3`: compact normalized starter data.
 - `scripts/install.sh`: idempotent VPS installation.
 - `tests/`: dependency-free acceptance tests.
@@ -31,7 +32,7 @@ publication. The public application remains read-only.
 
 ## Release
 
-Update `VERSION`, `src/gmd/__init__.py`, and `CHANGELOG.md`, then run:
+Update `VERSION`, `package.json`, `src/gmd/__init__.py`, and `CHANGELOG.md`, then run:
 
 ```bash
 bash scripts/build-release.sh

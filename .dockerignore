@@ -9,4 +9,3 @@ __pycache__
 .coverage
 docs/screenshots
 node_modules
-package-lock.json

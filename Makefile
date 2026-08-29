@@ -10,11 +10,12 @@ test:
 
 validate:
 	$(PYTHON) -m compileall -q src tests
-	node --check web/assets/app.js
+	go test ./...
+	npm run typecheck
 	bash -n scripts/install.sh scripts/build-installer.sh scripts/build-release.sh scripts/test.sh bin/gmd
 
 web:
-	npm ci --ignore-scripts
+	npm ci
 	npm run build
 
 seed:

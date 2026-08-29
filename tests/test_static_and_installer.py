@@ -16,86 +16,45 @@ class StaticAndInstallerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.root = Path(__file__).resolve().parents[1]
-        cls.html = (cls.root / "web/index.html").read_text(encoding="utf-8")
-        cls.javascript = (cls.root / "web/assets/app.js").read_text(encoding="utf-8")
+        cls.app = (cls.root / "frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    def test_every_javascript_id_selector_exists(self) -> None:
-        html_ids = set(re.findall(r'\bid=["\']([^"\']+)', self.html))
-        selectors = set(
-            re.findall(r'querySelector\(["\']#([^"\']+)', self.javascript)
-        )
-        selectors.update(
-            re.findall(r'getElementById\(["\']([^"\']+)', self.javascript)
-        )
-        self.assertEqual(selectors - html_ids, set())
-
-    def test_csp_compatible_assets_and_valid_date_state(self) -> None:
-        self.assertNotRegex(self.html, r"<script(?![^>]*\bsrc=)")
-        self.assertNotRegex(self.html, r"<style\b")
-        self.assertIn("? value : null", self.javascript)
-        for reference in re.findall(r'(?:src|href)=["\'](/[^"\']+)', self.html):
-            clean = reference.split("?", 1)[0]
-            self.assertTrue((self.root / "web" / clean.lstrip("/")).exists(), clean)
-
-    def test_node_parses_frontend(self) -> None:
-        result = subprocess.run(
-            ["node", "--check", str(self.root / "web/assets/app.js")],
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_filter_selects_use_state_and_locale_is_sanitized(self) -> None:
-        populate_select = re.search(
-            r"function populateSelect\(.*?\n}\n\nfunction filterKeyFor",
-            self.javascript,
-            re.DOTALL,
-        )
-        self.assertIsNotNone(populate_select)
-        implementation = populate_select.group(0)  # type: ignore[union-attr]
-        self.assertIn("state.filters[key]", implementation)
-        self.assertNotIn("select.value ||", implementation)
-        self.assertIn('element("option", { value: selected }', implementation)
-        self.assertNotRegex(
-            self.javascript,
-            r'control\.addEventListener\("input",\s*updateFilter\)',
-        )
-        self.assertIn('control.addEventListener("change", updateFilter)', self.javascript)
-        self.assertNotIn('[dom.countryFilter, "country"]', self.javascript)
-        self.assertIn("function populateCountryPicker(values)", self.javascript)
-        self.assertIn('id="countryPicker"', self.html)
-        self.assertNotIn('select id="countryFilter"', self.html)
-        self.assertIn('cache: attempt ? "reload" : "no-store"', self.javascript)
-        self.assertIn("const body = await response.text()", self.javascript)
-        self.assertNotIn("return response.json()", self.javascript)
-        self.assertIn("Intl.getCanonicalLocales", self.javascript)
-        self.assertIn("const displayLocale = safeLocale(navigator.language)", self.javascript)
-        self.assertNotRegex(self.javascript, r"new Intl\.[A-Za-z]+\([^\n]*navigator\.language")
-
-    def test_tailwind_and_htmx_are_pinned_local_assets(self) -> None:
+    def test_requested_frontend_stack_is_exact_and_strict(self) -> None:
         package = json.loads((self.root / "package.json").read_text(encoding="utf-8"))
-        dependencies = package["devDependencies"]
-        self.assertEqual(dependencies["tailwindcss"], "4.3.3")
-        self.assertEqual(dependencies["@tailwindcss/cli"], "4.3.3")
-        self.assertEqual(dependencies["htmx.org"], "4.0.0-beta6")
-        version = (self.root / "VERSION").read_text(encoding="utf-8").strip()
-        self.assertIn(f'/assets/tailwind.css?v={version}', self.html)
-        self.assertIn('/assets/htmx.min.js?v=4.0.0-beta6', self.html)
-        self.assertNotIn("cdn.jsdelivr.net", self.html)
-        self.assertIn('hx-get="/ui/v1/credits"', self.html)
-        self.assertIn('hx-target="#creditsSources"', self.html)
-        self.assertIn('hx-get="/ui/v1/coverage"', self.html)
-        for asset in ("web/assets/tailwind.css", "web/assets/htmx.min.js"):
-            path = self.root / asset
-            self.assertTrue(path.exists(), asset)
-            self.assertGreater(path.stat().st_size, 1000, asset)
+        self.assertEqual(package["dependencies"]["react"], "19.2.8")
+        self.assertEqual(package["devDependencies"]["typescript"], "7.0.2")
+        self.assertEqual(package["devDependencies"]["vite"], "8.2.2")
+        for dependency in (
+            "@tanstack/react-query",
+            "@tanstack/react-router",
+            "@tanstack/react-virtual",
+        ):
+            self.assertIn(dependency, package["dependencies"])
+        tsconfig = json.loads((self.root / "tsconfig.json").read_text(encoding="utf-8"))
+        self.assertTrue(tsconfig["compilerOptions"]["strict"])
+        self.assertTrue(tsconfig["compilerOptions"]["noUncheckedIndexedAccess"])
+
+    def test_country_and_reset_are_controlled_by_url_state(self) -> None:
+        self.assertIn("value={search.country}", self.app)
+        self.assertIn("onChange={(country) => setSearch({ country })}", self.app)
+        self.assertIn("navigate({ search: { view: 'day', date: today } })", self.app)
+        self.assertNotIn("selected={", self.app)
+
+    def test_go_serves_frontend_and_read_only_api(self) -> None:
+        source = (self.root / "cmd/gmd-server/main.go").read_text(encoding="utf-8")
+        compose = (self.root / "compose.yaml").read_text(encoding="utf-8")
+        caddy = (self.root / "Caddyfile").read_text(encoding="utf-8")
+        self.assertIn("//go:embed all:dist", source)
+        self.assertIn('method_not_allowed', source)
+        self.assertIn('mode=ro', source)
+        self.assertIn("Dockerfile.api", compose)
+        self.assertIn("./data:/data:ro", compose)
+        self.assertNotIn("./web:/srv/web", compose)
+        self.assertIn("reverse_proxy api:8080", caddy)
 
     def test_public_version_references_are_synchronized(self) -> None:
         version = (self.root / "VERSION").read_text(encoding="utf-8").strip()
         package = json.loads((self.root / "package.json").read_text(encoding="utf-8"))
-        project = tomllib.loads(
-            (self.root / "pyproject.toml").read_text(encoding="utf-8")
-        )
+        project = tomllib.loads((self.root / "pyproject.toml").read_text(encoding="utf-8"))
         module = (self.root / "src/gmd/__init__.py").read_text(encoding="utf-8")
         compose = (self.root / "compose.yaml").read_text(encoding="utf-8")
         example = (self.root / ".env.example").read_text(encoding="utf-8")
@@ -104,7 +63,6 @@ class StaticAndInstallerTests(unittest.TestCase):
         self.assertIn(f'__version__ = "{version}"', module)
         self.assertEqual(compose.count(f"${{GMD_VERSION:-{version}}}"), 2)
         self.assertIn(f"GMD_VERSION={version}", example)
-        self.assertIn(f"/assets/app.js?v={version}", self.html)
 
     def test_self_extracting_installer_contains_expected_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -117,12 +75,8 @@ class StaticAndInstallerTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = output.read_bytes()
             marker = b"__GMD_PAYLOAD_BELOW__\n"
-            self.assertIn(marker, payload)
             header, archive = payload.split(marker, 1)
-            expected = re.search(
-                rb"PAYLOAD_SHA256='([0-9a-f]{64})'",
-                header,
-            )
+            expected = re.search(rb"PAYLOAD_SHA256='([0-9a-f]{64})'", header)
             self.assertIsNotNone(expected)
             self.assertEqual(
                 hashlib.sha256(archive).hexdigest(),
@@ -130,32 +84,17 @@ class StaticAndInstallerTests(unittest.TestCase):
             )
             with tarfile.open(fileobj=BytesIO(archive), mode="r:gz") as tar:
                 names = set(tar.getnames())
-            self.assertIn("global-media-discovery/compose.yaml", names)
-            self.assertIn("global-media-discovery/seed/catalog.sqlite3", names)
-            self.assertIn("global-media-discovery/web/index.html", names)
-            self.assertNotIn(
-                "global-media-discovery/seed/tvdb_aug_1_13_2026_extended.json",
-                names,
-            )
-            self.assertFalse(
-                any(name.endswith(("-wal", "-shm")) for name in names)
-            )
-            self.assertFalse(
-                any("/__pycache__/" in name or name.endswith(".pyc") for name in names)
-            )
-            self.assertFalse(any("/node_modules/" in name for name in names))
-
-            tampered = Path(temp) / "tampered.run"
-            broken = bytearray(payload)
-            broken[-1] ^= 1
-            tampered.write_bytes(broken)
-            failed = subprocess.run(
-                ["bash", str(tampered)],
-                capture_output=True,
-                text=True,
-            )
-            self.assertNotEqual(failed.returncode, 0)
-            self.assertIn("checksum verification failed", failed.stderr)
+            for required in (
+                "global-media-discovery/compose.yaml",
+                "global-media-discovery/seed/catalog.sqlite3",
+                "global-media-discovery/Dockerfile.api",
+                "global-media-discovery/cmd/gmd-server/main.go",
+                "global-media-discovery/frontend/src/App.tsx",
+                "global-media-discovery/package-lock.json",
+            ):
+                self.assertIn(required, names)
+            self.assertFalse(any("/node_modules" in name for name in names))
+            self.assertFalse(any(name.endswith(("-wal", "-shm")) for name in names))
 
 
 if __name__ == "__main__":

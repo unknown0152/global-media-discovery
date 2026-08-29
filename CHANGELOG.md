@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.0.0 — 2026-08-29
+
+- Replace the public Python/WSGI runtime and HTMX shell with a single Go 1.27
+  server that embeds and serves both the read-only API and production website.
+- Rebuild the frontend with React 19.2.8, TypeScript 7.0.2 strict mode, Vite
+  8.2.2/Rolldown, Tailwind CSS 4.3.3, and TanStack Query, Router, and Virtual.
+- Keep filter, search, date, view, and sort state in bookmarkable URLs, with
+  controlled country selection and deterministic Reset behavior.
+- Preserve the Python collector as the only catalog writer, its provider
+  credentials, conservative reconciliation, evidence model, staging database
+  validation, backups, and atomic publication.
+- Split public and collector images so the Go API has only a read-only database
+  mount and no provider network or credential access.
+- Add Go contract tests for stable routes, HEAD, input bounds, filters,
+  pagination, evidence, and read-only method enforcement.
+
 ## 1.4.0 — 2026-08-29
 
 - Add an optional GMD-to-Seerr title handoff using verified TMDB identities.

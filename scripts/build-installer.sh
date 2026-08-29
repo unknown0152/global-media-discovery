@@ -26,6 +26,7 @@ tar -C "$ROOT" \
   --exclude='./*.tar.gz' \
   --exclude='./SHA256SUMS*' \
   --exclude='./.test-output' \
+  --exclude='./.firecrawl' \
   --exclude='./node_modules' \
   -cf - . | tar -C "$PACKAGE_ROOT" -xf -
 
