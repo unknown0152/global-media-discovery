@@ -39,8 +39,9 @@ obscure and zero-vote titles.
   retained conflicting dates.
 - Title details with artwork fallbacks, overview, origins, language, format,
   genres, networks, external identifiers, and known aliases.
-- Responsive Tailwind CSS 4 interface enhanced with HTMX 4, plus light, dark,
-  and system themes.
+- Responsive React 19.2 interface built with strict TypeScript 7, Vite
+  8/Rolldown, Tailwind CSS 4, and TanStack Query, Router, and Virtual, plus
+  light, dark, and system themes.
 - Optional authenticated handoff to Seerr for titles with a verified TMDB ID;
   Seerr retains login, permissions, quotas, season selection, and approval.
 - Scheduled TMDB, TheTVDB, and credential-free TVmaze collection.
@@ -54,7 +55,7 @@ installer and checksums from the latest GitHub release, then verify before
 running it:
 
 ```bash
-version=1.4.0
+version=2.0.0
 base="https://github.com/unknown0152/global-media-discovery/releases/download/v${version}"
 curl -fLO "${base}/global-media-discovery-installer-${version}.run"
 curl -fLO "${base}/global-media-discovery-SHA256SUMS-${version}.txt"
@@ -81,7 +82,7 @@ sudo \
   GMD_UPDATE_INTERVAL_HOURS=12 \
   TMDB_TOKEN='replace-me' \
   TVDB_KEY='replace-me' \
-  bash global-media-discovery-installer-1.4.0.run
+  bash global-media-discovery-installer-2.0.0.run
 ```
 
 Interactive credential entry is safer on shared machines because exported or
@@ -100,7 +101,7 @@ TVmaze ───┘                              │
                                          │
                                     atomic replace
                                          ▼
-Caddy ── Tailwind + HTMX UI ── GET-only API ── live SQLite DB (read-only)
+Caddy ── Go 1.27 server ── React UI + GET-only API ── live SQLite DB (read-only)
 Browser ── verified TMDB title handoff ── Seerr login and request flow (optional)
 ```
 
@@ -162,9 +163,10 @@ are inherently incomplete and remain subject to provider terms.
 
 ## Development
 
-Requirements: Python 3.13, Node.js/npm, Docker Engine, and Docker Compose.
-The API/collector use the Python standard library plus pinned Gunicorn. Browser
-dependencies are compiled and vendored locally; no runtime CDN is required.
+Requirements: Go 1.27, Python 3.13, Node.js 24/npm, Docker Engine, and Docker
+Compose. Go serves the embedded React build and public API; Python runs only
+the private collector. Browser dependencies are compiled locally; no runtime
+CDN is required.
 
 ```bash
 npm ci
@@ -173,10 +175,10 @@ make test
 make release
 ```
 
-The release gate compiles Python and JavaScript, runs the complete unit and
-production-behavior suite, checks frontend selectors, validates shell scripts
-and Compose hardening, verifies the seed database, and smoke-tests the embedded
-self-extracting installer payload.
+The release gate compiles Go, Python, and strict TypeScript, runs the complete
+unit and production-behavior suite, builds with Vite/Rolldown, validates shell
+scripts and Compose hardening, verifies the seed database, and smoke-tests the
+embedded self-extracting installer payload.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [Code of Conduct](CODE_OF_CONDUCT.md) before participating. Maintainers use the

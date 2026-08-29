@@ -1,5 +1,21 @@
 # Architecture
 
+## Version 2 public runtime
+
+The public request path is `Caddy → Go 1.27 → read-only SQLite`. The Go binary
+embeds the React production build and serves both the website and every
+`/api/v1` response. Its container receives the catalog as a read-only mount,
+has no provider credentials, and is attached only to the internal backend
+network.
+
+React 19.2 uses strict TypeScript 7, Vite 8/Rolldown, TanStack Query for server
+state, TanStack Router for bookmarkable date/filter state, and TanStack Virtual
+for bounded rendering of large date ranges.
+
+The Python collector remains a separate, non-public service. It alone receives
+provider credentials and source egress. It writes a staging database, validates
+integrity and evidence invariants, then atomically publishes a completed file.
+
 ## Goal
 
 Global Media Discovery is not a recommendation engine. It is a worldwide
@@ -11,16 +27,16 @@ self-hosting footprint.
 
 ### Caddy
 
-Caddy is the only internet-facing container. It serves the static frontend,
-adds security headers, compresses responses, proxies `/api/*` JSON and `/ui/*`
-HTML fragments, and handles automatic HTTPS when a domain is configured.
+Caddy is the only internet-facing container. It adds security headers,
+compresses responses, proxies to the Go server, and handles automatic HTTPS
+when a domain is configured.
 
 ### Browser interface
 
-Tailwind CSS 4 is compiled during development and committed as a minified
-static asset. HTMX 4 is pinned and served locally. HTMX requests only escaped
-HTML fragments through GET endpoints; it cannot mutate the catalog. The JSON
-API remains available for programmatic clients and calendar interactions.
+React 19.2 and Tailwind CSS 4 are compiled by Vite 8/Rolldown and embedded in
+the Go binary. TanStack Query handles bounded GET requests, Router preserves
+date and filter state in URLs, and Virtual keeps large result views efficient.
+No browser code has a write path or provider credential.
 
 An optional Seerr handoff builds a normal browser link from a configured
 public Seerr base URL and a verified TMDB identity. Seerr—not GMD—handles
@@ -30,10 +46,10 @@ purpose.
 
 ### Read-only API
 
-The API is a dependency-light WSGI application behind Gunicorn. Every request
-opens SQLite in `mode=ro` and enables `PRAGMA query_only`. Only `GET` and `HEAD`
-are accepted. Inputs are length-bounded and all user values are bound SQL
-parameters.
+The API is implemented in Go 1.27. Every request opens SQLite in `mode=ro` and
+enables `PRAGMA query_only`; connections are not kept idle so atomic collector
+publication is observed immediately. Only `GET` and `HEAD` are accepted.
+Inputs are length-bounded and all user values are bound SQL parameters.
 
 ### Collector
 
@@ -162,10 +178,8 @@ The defaults favor a tiny VPS and can be adjusted in `.env`.
 Internet
    │
    ▼
-Caddy ────── static files
-   │
-   ▼
-API container ── read-only DB mount
+Caddy ────── Go container ── embedded React assets
+                       └───── read-only DB mount
 
 Browser ── optional verified-ID link ── Seerr authentication + request flow
 

@@ -28,8 +28,9 @@ for suffix in ("-wal", "-shm"):
     if sidecar.exists():
         raise SystemExit(f"bundled seed sidecar must not exist: {sidecar}")
 PY
-node --check "$ROOT/web/assets/app.js"
-node --check "$ROOT/web/assets/htmx.min.js"
+go test ./...
+npm run typecheck
+npm run build
 bash -n \
   "$ROOT/scripts/install.sh" \
   "$ROOT/scripts/build-installer.sh" \

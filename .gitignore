@@ -18,6 +18,7 @@ data/
 __pycache__/
 *.py[cod]
 node_modules/
+.firecrawl/
 
 # Editor and operating-system files
 .DS_Store

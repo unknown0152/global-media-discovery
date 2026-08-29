@@ -30,6 +30,13 @@ catalog. It does not include the original raw export files.
 
 ## Web libraries
 
-The compiled interface includes Tailwind CSS 4.3.3 and a locally vendored copy
-of HTMX 4.0.0-beta6. Both projects are distributed under the MIT license.
-Neither library is loaded from a third-party CDN at runtime.
+The compiled interface includes React 19.2.8, TanStack Query 5.102.8, TanStack
+Router 1.170.32, TanStack Virtual 3.14.10, and Tailwind CSS 4.3.3. These projects
+are distributed under the MIT license. Vite 8.2.2 and Rolldown are build-time
+tools and are also MIT licensed. No library is loaded from a third-party CDN at
+runtime.
+
+## Go SQLite driver
+
+The public Go server uses `modernc.org/sqlite`, a CGo-free SQLite package under
+the BSD-3-Clause license. SQLite itself is in the public domain.

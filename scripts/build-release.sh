@@ -41,6 +41,7 @@ tar -C "$ROOT" \
   --exclude='./*.tar.gz' \
   --exclude='./SHA256SUMS*' \
   --exclude='./.test-output' \
+  --exclude='./.firecrawl' \
   --exclude='./node_modules' \
   -cf - . | tar -C "$SOURCE_ROOT" -xf -
 
@@ -105,7 +106,9 @@ manifest = {
     "validation": {
         "python_unittests": "passed",
         "python_compile": "passed",
-        "javascript_parse": "passed",
+        "go_tests": "passed",
+        "typescript_strict": "passed",
+        "vite_rolldown_build": "passed",
         "shell_syntax": "passed",
         "compose_structure": "passed",
         "installer_payload_checksum": "embedded-and-tested",
@@ -154,7 +157,9 @@ required = {
     "global-media-discovery/scripts/install.sh",
     "global-media-discovery/compose.yaml",
     "global-media-discovery/seed/catalog.sqlite3",
-    "global-media-discovery/web/index.html",
+    "global-media-discovery/Dockerfile.api",
+    "global-media-discovery/frontend/src/App.tsx",
+    "global-media-discovery/cmd/gmd-server/main.go",
 }
 missing = required - names
 if missing:
