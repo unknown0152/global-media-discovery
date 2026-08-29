@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.0 — 2026-08-29
+
+- Add an optional GMD-to-Seerr title handoff using verified TMDB identities.
+- Keep authentication, season selection, permissions, quotas, and request
+  creation inside Seerr; GMD sends no credentials and remains read-only.
+- Clearly explain when a title cannot be handed off because no verified TMDB
+  identity exists instead of guessing or fuzzy-matching an identifier.
+- Add a `gmd seerr` management command, safe URL validation, upgrade-safe
+  configuration preservation, runtime integration metadata, and regression
+  tests for identity and credential-boundary behavior.
+- Accept TheTVDB's integer-valued series and remote identifiers so one provider
+  payload shape cannot abort its otherwise isolated collection pass.
+
 ## 1.3.0 — 2026-08-14
 
 - Explain the exact meaning of each selected premiere date and distinguish

@@ -1,12 +1,12 @@
-const CACHE = "gmd-shell-v1.3.0";
+const CACHE = "gmd-shell-v1.4.0";
 const SHELL = [
   "/",
   "/index.html",
-  "/assets/tailwind.css?v=1.3.0",
-  "/assets/app.css?v=1.3.0",
+  "/assets/tailwind.css?v=1.4.0",
+  "/assets/app.css?v=1.4.0",
   "/assets/htmx.min.js?v=4.0.0-beta6",
-  "/assets/app.js?v=1.3.0",
-  "/favicon.svg?v=1.3.0",
+  "/assets/app.js?v=1.4.0",
+  "/favicon.svg?v=1.4.0",
   "/manifest.webmanifest",
 ];
 

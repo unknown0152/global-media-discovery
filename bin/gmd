@@ -17,6 +17,39 @@ public_url() {
   sed -n "s/^GMD_PUBLIC_URL='\\(.*\\)'$/\\1/p" .env 2>/dev/null | head -n1
 }
 
+seerr_url() {
+  sed -n "s/^GMD_SEERR_PUBLIC_URL='\\(.*\\)'$/\\1/p" .env 2>/dev/null | head -n1
+}
+
+set_env_value() {
+  local key="$1" value="$2" temporary
+  temporary="$(mktemp "$INSTALL_DIR/.env.XXXXXX")"
+  awk -v key="$key" -v value="$value" '
+    BEGIN { changed = 0 }
+    $0 ~ "^" key "=" {
+      print key "=\047" value "\047"
+      changed = 1
+      next
+    }
+    { print }
+    END {
+      if (!changed) print key "=\047" value "\047"
+    }
+  ' .env > "$temporary"
+  chmod 0600 "$temporary"
+  mv -f "$temporary" .env
+}
+
+validate_seerr_url() {
+  local value="$1"
+  case "$value" in
+    http://*|https://*) ;;
+    *) return 1 ;;
+  esac
+  [[ "$value" != *"@"* && "$value" != *"?"* && "$value" != *"#"* \
+    && "$value" != *"'"* && "$value" != *'"'* && "$value" != *[[:space:]]* ]]
+}
+
 write_secret() {
   local path="$1" value="$2"
   printf '%s' "$value" > "$path"
@@ -88,6 +121,40 @@ case "$command" in
     wait_stack
     echo "Credentials updated. Run 'gmd update' to collect immediately."
     ;;
+  seerr)
+    if [ "$#" -eq 0 ]; then
+      url="$(seerr_url)"
+      if [ -n "$url" ]; then
+        echo "Seerr handoff: $url"
+      else
+        echo "Seerr handoff: disabled"
+      fi
+      exit 0
+    fi
+    [ "$#" -eq 1 ] || {
+      echo "Usage: gmd seerr [https://seerr.example.com|off]" >&2
+      exit 2
+    }
+    if [ "$1" = "off" ]; then
+      set_env_value GMD_SEERR_PUBLIC_URL ""
+      wait_stack
+      echo "Seerr handoff disabled."
+      exit 0
+    fi
+    validate_seerr_url "$1" || {
+      echo "Seerr URL must be a plain http(s) base URL without credentials, query, or fragment." >&2
+      exit 2
+    }
+    candidate="${1%/}"
+    curl -fsS --connect-timeout 5 --max-time 15 \
+      "$candidate/api/v1/status" >/dev/null || {
+      echo "Seerr did not answer its public status endpoint; configuration was not changed." >&2
+      exit 1
+    }
+    set_env_value GMD_SEERR_PUBLIC_URL "$candidate"
+    wait_stack
+    echo "Seerr handoff enabled: $candidate"
+    ;;
   doctor)
     docker info >/dev/null
     compose config --quiet
@@ -134,6 +201,7 @@ Usage: gmd <command>
   backup       Create a consistent timestamped backup
   restore      Validate and atomically restore a backup by filename
   credentials  Update provider credentials without echoing them
+  seerr        Show, configure, or disable the authenticated Seerr handoff
   doctor       Check Docker, Compose, database, and public API health
   start        Start or recreate the stack
   stop         Stop the stack

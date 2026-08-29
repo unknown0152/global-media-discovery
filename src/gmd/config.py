@@ -11,6 +11,7 @@ from datetime import date
 import os
 from pathlib import Path
 from typing import Final
+from urllib.parse import urlsplit
 
 DEFAULT_DATA_DIR: Final = Path("/data")
 DEFAULT_SEED_DIR: Final = Path("/app/seed")
@@ -49,6 +50,24 @@ def _bool(name: str, default: bool = False) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _public_http_url(name: str) -> str:
+    """Return a safe browser-facing HTTP(S) base URL or disable the setting."""
+    raw = os.getenv(name, "").strip().rstrip("/")
+    if not raw:
+        return ""
+    parsed = urlsplit(raw)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        return ""
+    return raw
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     data_dir: Path
@@ -56,6 +75,7 @@ class Settings:
     seed_dir: Path
     site_name: str
     public_url: str
+    seerr_public_url: str
     api_prefix: str
     tmdb_token: str
     tvdb_key: str
@@ -100,6 +120,7 @@ def load_settings() -> Settings:
         site_name=os.getenv("GMD_SITE_NAME", "Global Media Discovery").strip()
         or "Global Media Discovery",
         public_url=os.getenv("GMD_PUBLIC_URL", "").strip(),
+        seerr_public_url=_public_http_url("GMD_SEERR_PUBLIC_URL"),
         api_prefix="/api/v1",
         tmdb_token=_read_secret("TMDB_TOKEN", "TMDB_TOKEN_FILE"),
         tvdb_key=_read_secret("TVDB_KEY", "TVDB_KEY_FILE"),

@@ -41,6 +41,8 @@ obscure and zero-vote titles.
   genres, networks, external identifiers, and known aliases.
 - Responsive Tailwind CSS 4 interface enhanced with HTMX 4, plus light, dark,
   and system themes.
+- Optional authenticated handoff to Seerr for titles with a verified TMDB ID;
+  Seerr retains login, permissions, quotas, season selection, and approval.
 - Scheduled TMDB, TheTVDB, and credential-free TVmaze collection.
 - Validated staging databases and atomic SQLite publication.
 - Built-in backup, restore, integrity checking, health, statistics, and logs.
@@ -52,7 +54,7 @@ installer and checksums from the latest GitHub release, then verify before
 running it:
 
 ```bash
-version=1.3.0
+version=1.4.0
 base="https://github.com/unknown0152/global-media-discovery/releases/download/v${version}"
 curl -fLO "${base}/global-media-discovery-installer-${version}.run"
 curl -fLO "${base}/global-media-discovery-SHA256SUMS-${version}.txt"
@@ -79,7 +81,7 @@ sudo \
   GMD_UPDATE_INTERVAL_HOURS=12 \
   TMDB_TOKEN='replace-me' \
   TVDB_KEY='replace-me' \
-  bash global-media-discovery-installer-1.3.0.run
+  bash global-media-discovery-installer-1.4.0.run
 ```
 
 Interactive credential entry is safer on shared machines because exported or
@@ -99,12 +101,27 @@ TVmaze ───┘                              │
                                     atomic replace
                                          ▼
 Caddy ── Tailwind + HTMX UI ── GET-only API ── live SQLite DB (read-only)
+Browser ── verified TMDB title handoff ── Seerr login and request flow (optional)
 ```
 
 Only the collector receives provider secrets and a writable catalog mount. The
 API runs with a read-only root filesystem, dropped Linux capabilities, no
 provider-egress network, and a read-only SQLite mount. Unsupported HTTP methods
 are rejected with `405 Method Not Allowed`.
+
+### Optional Seerr integration
+
+GMD can add an **Open in Seerr** action to title details without a plugin or a
+Seerr API key. Configure the browser-facing Seerr base URL after installation:
+
+```bash
+sudo gmd seerr https://seerr.example.com
+```
+
+The action appears only for a verified TMDB identity and opens Seerr's own TV
+detail page. Users authenticate and request there, so GMD never impersonates an
+administrator or bypasses Seerr permissions. Use `sudo gmd seerr off` to
+disable it.
 
 Read the detailed [architecture](docs/ARCHITECTURE.md),
 [operations guide](docs/OPERATIONS.md), and [API reference](docs/API.md).

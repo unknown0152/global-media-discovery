@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
 
+from gmd.collector.http import HTTPClient
 from gmd.collector.pipeline import CollectorPipeline
 from gmd.collector.tmdb import normalize_tmdb
-from gmd.collector.tvdb import normalize_tvdb
+from gmd.collector.tvdb import TVDBCollector, normalize_tvdb
 from gmd.config import load_settings
 from gmd.db import (
     backup_database,
@@ -261,6 +263,42 @@ class ReconciliationTests(unittest.TestCase):
         self.writer.ingest(normalize_tvdb(extended))
         self.connection.commit()
         self.assertFalse(pipeline._tvdb_needs_extended(self.connection, basic))
+
+    def test_tvdb_window_accepts_numeric_provider_ids(self) -> None:
+        class FakeClient(HTTPClient):
+            def __init__(self) -> None:
+                super().__init__("test", min_delay_seconds=0)
+
+            def request_json(self, *args: object, **kwargs: object) -> dict[str, object]:
+                return {
+                    "data": [
+                        {
+                            "id": 987654,
+                            "name": "Numeric Identifier",
+                            "firstAired": "2026-08-14",
+                        }
+                    ],
+                    "links": {},
+                }
+
+        collector = TVDBCollector("configured", FakeClient())
+        collector.token = "test-token"
+        records = collector.series_in_window(
+            date(2026, 8, 1),
+            date(2026, 8, 31),
+        )
+        self.assertEqual([record["id"] for record in records], [987654])
+
+        normalized = normalize_tvdb(
+            {
+                **records[0],
+                "remoteIds": [{"sourceName": "TheMovieDB.com", "id": 123456}],
+            }
+        )
+        self.assertIn(
+            ("tmdb", "123456"),
+            {(identity.source, identity.value) for identity in normalized.external_ids},
+        )
 
     def test_database_validation_rejects_bad_dates(self) -> None:
         self.writer.ingest(

@@ -28,6 +28,7 @@ class ReadOnlyUI:
 
     def __init__(self, settings: Settings) -> None:
         self.queries = CatalogQueries(settings.database_path)
+        self.seerr_public_url = settings.seerr_public_url
 
     def __call__(
         self,
@@ -57,7 +58,11 @@ class ReadOnlyUI:
             else:
                 item = self.queries.title(title_id)
                 status = 200 if item else 404
-                content = render_title(item) if item else self._error("Title not found.")
+                content = (
+                    render_title(item, self.seerr_public_url)
+                    if item
+                    else self._error("Title not found.")
+                )
         elif path == "/ui/v1/credits":
             status = 200
             content = render_credits(self.queries.credits())
@@ -104,7 +109,7 @@ class ReadOnlyUI:
         return [] if method == "HEAD" else [body]
 
 
-def render_title(item: dict[str, Any] | None) -> str:
+def render_title(item: dict[str, Any] | None, seerr_public_url: str = "") -> str:
     if not item:
         return ""
     title = item["title"]
@@ -170,6 +175,7 @@ def render_title(item: dict[str, Any] | None) -> str:
         if item.get("date_conflict")
         else ""
     )
+    seerr_html = _render_seerr_handoff(item, seerr_public_url)
     return f"""
 <article class="text-gmd-ink dark:text-zinc-100" data-htmx-fragment="title-detail">
   <div class="grid gap-6 md:grid-cols-[11rem_1fr]">
@@ -202,9 +208,52 @@ def render_title(item: dict[str, Any] | None) -> str:
       <h3 class="text-sm font-black tracking-wide uppercase">Alternate titles</h3>
       <ul class="mt-3 grid gap-2">{aliases_html}</ul>
     </section>
+    {seerr_html}
   </div>
 </article>
 """.strip()
+
+
+def _render_seerr_handoff(item: dict[str, Any], public_url: str) -> str:
+    base_url = _safe_base_url(public_url)
+    if not base_url:
+        return ""
+    tmdb_id = next(
+        (
+            str(identity.get("id"))
+            for identity in item.get("external_ids", [])
+            if identity.get("source") == "tmdb"
+            and re.fullmatch(r"[1-9][0-9]{0,11}", str(identity.get("id") or ""))
+        ),
+        "",
+    )
+    if not tmdb_id:
+        return (
+            f'<section class="{_PANEL}">'
+            '<p class="text-gmd-accent text-xs font-black tracking-[0.18em] uppercase">'
+            'Seerr</p><h3 class="mt-2 text-lg font-black">No verified handoff yet</h3>'
+            '<p class="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">'
+            'This record has no verified TMDB identity. GMD will not guess an ID just to '
+            'create a request.</p></section>'
+        )
+    href = f"{base_url}/tv/{tmdb_id}"
+    return (
+        f'<section class="{_PANEL}">'
+        '<p class="text-gmd-accent text-xs font-black tracking-[0.18em] uppercase">'
+        'Seerr</p><h3 class="mt-2 text-lg font-black">Want to watch it?</h3>'
+        '<p class="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">'
+        'Continue in Seerr to sign in, choose seasons, and request through your normal '
+        'permissions and quotas.</p>'
+        f'<a class="mt-4 inline-flex min-h-11 items-center justify-center rounded-full '
+        f'bg-gmd-accent px-5 py-2.5 text-sm font-black text-white no-underline '
+        f'transition hover:brightness-110 focus-visible:outline-3 focus-visible:outline-offset-2 '
+        f'focus-visible:outline-gmd-accent" href="{_e(href)}" target="_blank" '
+        f'rel="noreferrer noopener" aria-label="Open this title in Seerr">'
+        'Open in Seerr <span aria-hidden="true" class="ml-2">↗</span></a>'
+        '<p class="mt-3 text-xs leading-5 text-zinc-500 dark:text-zinc-400">'
+        'GMD sends only the verified TMDB title ID. Your Seerr account remains in control.'
+        '</p></section>'
+    )
 
 
 def render_credits(payload: dict[str, Any]) -> str:
@@ -326,6 +375,18 @@ def _safe_url(value: object) -> str:
         return ""
     parsed = urlsplit(value)
     return value if parsed.scheme in {"http", "https"} and parsed.netloc else ""
+
+
+def _safe_base_url(value: object) -> str:
+    safe = _safe_url(value)
+    if not safe:
+        return ""
+    parsed = urlsplit(safe)
+    if parsed.username is not None or parsed.password is not None:
+        return ""
+    if parsed.query or parsed.fragment:
+        return ""
+    return safe.rstrip("/")
 
 
 def _initials(value: str) -> str:

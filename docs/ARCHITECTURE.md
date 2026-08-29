@@ -22,6 +22,12 @@ static asset. HTMX 4 is pinned and served locally. HTMX requests only escaped
 HTML fragments through GET endpoints; it cannot mutate the catalog. The JSON
 API remains available for programmatic clients and calendar interactions.
 
+An optional Seerr handoff builds a normal browser link from a configured
+public Seerr base URL and a verified TMDB identity. Seerr—not GMD—handles
+authentication, permissions, quotas, season selection, and request creation.
+Titles without a verified TMDB key are never guessed or fuzzy-matched for this
+purpose.
+
 ### Read-only API
 
 The API is a dependency-light WSGI application behind Gunicorn. Every request
@@ -161,6 +167,8 @@ Caddy ────── static files
    ▼
 API container ── read-only DB mount
 
+Browser ── optional verified-ID link ── Seerr authentication + request flow
+
 Collector container ── writable DB mount + API-key file secrets ── providers
                     (separate egress-only Docker network)
 ```
@@ -168,3 +176,5 @@ Collector container ── writable DB mount + API-key file secrets ── provi
 The browser never receives source API credentials. The API and collector run
 as non-root UID/GID `65532`, with dropped capabilities, read-only root
 filesystems, no-new-privileges, resource limits, and log rotation.
+GMD stores no Seerr API key and has no direct request-writing connection to
+Seerr; its public API remains GET/HEAD-only.

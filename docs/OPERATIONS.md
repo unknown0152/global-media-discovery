@@ -12,7 +12,7 @@
 ## Install or upgrade
 
 ```bash
-sudo bash global-media-discovery-installer-1.3.0.run
+sudo bash global-media-discovery-installer-1.4.0.run
 ```
 
 The installer is idempotent. It stops the previous stack, copies new code,
@@ -112,6 +112,26 @@ The command prompts without echoing values, preserves a credential when its
 prompt is left blank, fixes ownership and permissions, and recreates the
 services. Run `gmd update` afterward for an immediate collection cycle. Avoid
 placing actual keys in public issue reports, command history, or screenshots.
+
+## Connect Seerr
+
+Configure the URL users already use to reach Seerr:
+
+```bash
+sudo gmd seerr https://seerr.example.com
+sudo gmd seerr                         # show current state
+```
+
+The command verifies Seerr's public status endpoint before changing `.env` and
+recreates only the GMD services. GMD does not need or store a Seerr API key.
+Title details then link verified TMDB records into Seerr, where the user signs
+in and completes the request under normal permissions and quotas.
+
+Disable the handoff with:
+
+```bash
+sudo gmd seerr off
+```
 
 ## Reconfigure
 

@@ -133,6 +133,12 @@ dotenv_value() {
   printf "'%s'" "$value"
 }
 
+existing_env_value() {
+  local key="$1"
+  [ -f "$INSTALL_DIR/.env" ] || return 0
+  sed -n "s/^${key}='\(.*\)'$/\1/p" "$INSTALL_DIR/.env" | head -n1
+}
+
 validate_port() {
   local value="$1" label="$2"
   [[ "$value" =~ ^[0-9]+$ ]] || die "$label must be numeric."
@@ -160,6 +166,11 @@ UPDATE_HOURS="${GMD_UPDATE_INTERVAL_HOURS:-}"
 ask SITE_NAME "Site name" "Global Media Discovery"
 ask DOMAIN "Public domain (blank for HTTP by IP)" ""
 ask UPDATE_HOURS "Automatic update interval in hours" "24"
+
+SEERR_PUBLIC_URL="${GMD_SEERR_PUBLIC_URL:-}"
+if [ -z "$SEERR_PUBLIC_URL" ]; then
+  SEERR_PUBLIC_URL="$(existing_env_value GMD_SEERR_PUBLIC_URL)"
+fi
 
 SITE_NAME="${SITE_NAME//$'\n'/ }"
 [ -n "$SITE_NAME" ] || die "Site name cannot be empty."
@@ -247,6 +258,7 @@ GMD_VERSION='$VERSION'
 GMD_SITE_NAME=$(dotenv_value "$SITE_NAME")
 GMD_SITE_ADDRESS=$(dotenv_value "$SITE_ADDRESS")
 GMD_PUBLIC_URL=$(dotenv_value "$PUBLIC_URL")
+GMD_SEERR_PUBLIC_URL=$(dotenv_value "$SEERR_PUBLIC_URL")
 GMD_HTTP_PORT='$HTTP_PORT'
 GMD_HTTPS_PORT='$HTTPS_PORT'
 GMD_HTTPS_BIND='$HTTPS_BIND'
