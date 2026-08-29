@@ -149,6 +149,65 @@ class ProductionBehaviorTests(unittest.TestCase):
         self.assertNotIn("javascript:", escaped.lower())
         self.assertIn("&lt;script&gt;", escaped)
 
+    def test_seerr_handoff_uses_verified_tmdb_id_and_keeps_requests_in_seerr(self) -> None:
+        status, _, meta = self.request("GET", "/api/v1/meta")
+        self.assertEqual(status, 200)
+        self.assertEqual(
+            meta["integrations"]["seerr"],
+            {
+                "configured": False,
+                "mode": "authenticated_handoff",
+                "public_url": None,
+            },
+        )
+
+        _, _, events = self.request(
+            "GET",
+            "/api/v1/events",
+            "from=2026-08-01&to=2026-08-31&limit=200",
+        )
+        matched = next(
+            item
+            for item in events["items"]
+            if any(identity["source"] == "tmdb" for identity in item["external_ids"])
+        )
+        tmdb_id = next(
+            identity["id"]
+            for identity in matched["external_ids"]
+            if identity["source"] == "tmdb"
+        )
+        integrated_ui = ReadOnlyUI(
+            replace(self.settings, seerr_public_url="https://seerr.example.test")
+        )
+        self.ui = integrated_ui
+        status, _, body = self.ui_request(
+            "GET",
+            f'/ui/v1/titles/{matched["title"]["id"]}',
+        )
+        self.assertEqual(status, 200)
+        self.assertIn(f'href="https://seerr.example.test/tv/{tmdb_id}"', body)
+        self.assertIn("Open in Seerr", body)
+        self.assertIn("normal permissions and quotas", body)
+        self.assertNotIn("X-Api-Key", body)
+        self.assertNotIn("<form", body)
+
+    def test_seerr_handoff_never_guesses_or_accepts_credentialed_url(self) -> None:
+        item = {
+            "title": {"name": "Unmatched", "overview": ""},
+            "external_ids": [{"source": "tvdb", "id": "123", "url": None}],
+        }
+        unmatched = render_title(item, "https://seerr.example.test")
+        self.assertIn("No verified handoff yet", unmatched)
+        self.assertNotIn("/tv/123", unmatched)
+
+        unsafe = render_title(
+            item,
+            "https://username:password@seerr.example.test",
+        )
+        self.assertNotIn("username", unsafe)
+        self.assertNotIn("password", unsafe)
+        self.assertNotIn("Seerr", unsafe)
+
     def test_coverage_is_explicit_and_counted(self) -> None:
         status, _, payload = self.request("GET", "/api/v1/coverage")
         self.assertEqual(status, 200)

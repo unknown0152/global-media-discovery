@@ -19,7 +19,10 @@ Returns database readiness, update timestamp, catalog version, and counts.
 GET /api/v1/meta
 ```
 
-Returns site name, date bounds, formats, counts, and last collector run.
+Returns site name, date bounds, formats, counts, last collector run, and safe
+public integration metadata. When the optional Seerr handoff is enabled,
+`integrations.seerr` reports `authenticated_handoff` mode and its public base
+URL. It never includes a Seerr or provider credential.
 
 ## Events
 

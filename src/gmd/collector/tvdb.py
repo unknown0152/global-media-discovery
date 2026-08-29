@@ -82,7 +82,7 @@ class TVDBCollector:
                 or item.get("first_aired")
                 or item.get("firstAirTime")
             )[:10]
-            provider_id = clean_text(item.get("id"))
+            provider_id = _identifier(item.get("id"))
             if provider_id and first and start.isoformat() <= first <= end.isoformat():
                 matches[provider_id] = item
         return list(matches.values())
@@ -174,7 +174,7 @@ def normalize_tvdb(record: dict[str, Any]) -> NormalizedTitle:
         if not isinstance(remote, dict):
             continue
         source_name = clean_text(remote.get("sourceName"))
-        value = clean_text(remote.get("id"))
+        value = _identifier(remote.get("id"))
         mapped = REMOTE_SOURCE_MAP.get(source_name)
         if mapped and value:
             normalized.external_ids.append(
@@ -252,6 +252,13 @@ def _positive_int(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return number if number > 0 else None
+
+
+def _identifier(value: object) -> str:
+    """Normalize TVDB identifiers, which the API returns as strings or integers."""
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return ""
+    return str(value).strip()
 
 
 def _remote_url(source: str, value: str) -> str | None:

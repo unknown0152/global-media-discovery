@@ -708,6 +708,9 @@ function renderDetail(item) {
   linkSection.append(links);
   left.append(linkSection);
 
+  const seerrSection = renderSeerrHandoff(item);
+  if (seerrSection) left.append(seerrSection);
+
   if (item.quality_flags.length) {
     const important = item.quality_flags.filter((flag) =>
       ["provider_problematic_entry", "identity_conflict", "identity_key_collision"].includes(flag.flag),
@@ -753,6 +756,61 @@ function renderDetail(item) {
 
   const body = element("section", { className: "detail-body" }, [left, facts]);
   dom.detailContent.replaceChildren(hero, body);
+}
+
+function renderSeerrHandoff(item) {
+  const integration = state.meta?.integrations?.seerr;
+  if (!integration?.configured || !integration.public_url) return null;
+
+  const section = element("section", { className: "detail-section" }, [
+    element("h3", {}, "Seerr"),
+  ]);
+  const tmdb = item.external_ids?.find((identity) =>
+    identity.source === "tmdb" && /^[1-9][0-9]{0,11}$/.test(String(identity.id || "")),
+  );
+  if (!tmdb) {
+    section.append(
+      element("strong", {}, "No verified handoff yet"),
+      element(
+        "p",
+        { className: "detail-overview" },
+        "This record has no verified TMDB identity. GMD will not guess an ID just to create a request.",
+      ),
+    );
+    return section;
+  }
+
+  const href = seerrTitleURL(integration.public_url, tmdb.id);
+  if (!href) return null;
+  const link = element("a", {
+    className: "mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-gmd-accent px-5 py-2.5 text-sm font-black text-white no-underline transition hover:brightness-110 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-gmd-accent",
+    href,
+    target: "_blank",
+    rel: "noreferrer noopener",
+    ariaLabel: "Open this title in Seerr",
+  }, "Open in Seerr ↗");
+  section.append(
+    element("strong", {}, "Want to watch it?"),
+    element(
+      "p",
+      { className: "detail-overview" },
+      "Continue in Seerr to sign in, choose seasons, and request through your normal permissions and quotas.",
+    ),
+    link,
+  );
+  return section;
+}
+
+function seerrTitleURL(base, tmdbId) {
+  try {
+    const url = new URL(base);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return "";
+    if (url.search || url.hash) return "";
+    url.pathname = `${url.pathname.replace(/\/$/, "")}/tv/${encodeURIComponent(tmdbId)}`;
+    return url.toString();
+  } catch {
+    return "";
+  }
 }
 
 function addFact(container, label, value) {

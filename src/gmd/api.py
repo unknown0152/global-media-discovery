@@ -152,7 +152,15 @@ class ReadOnlyAPI:
             raise APIError(503, "catalog_starting", "The catalog is being initialized.")
 
         if path == f"{prefix}/meta":
-            return self.queries.meta(), 30
+            payload = self.queries.meta()
+            payload["integrations"] = {
+                "seerr": {
+                    "configured": bool(self.settings.seerr_public_url),
+                    "mode": "authenticated_handoff",
+                    "public_url": self.settings.seerr_public_url or None,
+                }
+            }
+            return payload, 30
 
         if path == f"{prefix}/status":
             return self.queries.status(), 15
