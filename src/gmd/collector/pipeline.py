@@ -196,9 +196,9 @@ class CollectorPipeline:
 
                     if not self.settings.enable_simkl:
                         result["source_results"]["simkl"] = "disabled"
-                    elif not self.settings.simkl_permission_confirmed:
+                    elif not self.settings.simkl_rules_accepted:
                         result["source_results"]["simkl"] = (
-                            "disabled: permission not confirmed"
+                            "disabled: API rules not accepted"
                         )
                     elif not self.settings.simkl_client_id:
                         result["source_results"]["simkl"] = (

@@ -56,6 +56,14 @@ def calendar_payload() -> dict[str, object]:
 
 
 class SimklPayloadTests(unittest.TestCase):
+    def test_adapter_uses_public_calendar_not_oauth_sync(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "src/gmd/collector/simkl.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("https://data.simkl.in/calendar/v2", source)
+        self.assertNotIn('"/sync/', source)
+
     def test_v2_payload_is_validated_and_summarized(self) -> None:
         summary = validate_calendar_payload(calendar_payload())
         self.assertEqual(summary["calendar_entries"], 2)

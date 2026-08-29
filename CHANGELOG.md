@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.1 — 2026-08-29
+
+- Align the Simkl gate with the current official API rules: GMD uses only the
+  public Calendar v2 CDN and never calls OAuth watchlist `/sync/*` endpoints.
+- Add visible Simkl branding and item-specific links on result cards and date
+  evidence, plus a global schedule-evidence credit.
+- Require explicit API-rules and license-eligibility acceptance before enabling
+  production publication.
+
 ## 2.1.0 — 2026-08-29
 
 - Add a permission-gated Simkl Calendar v2 TV evidence adapter using only the

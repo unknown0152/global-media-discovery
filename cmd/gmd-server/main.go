@@ -25,7 +25,7 @@ import (
 //go:embed all:dist
 var frontend embed.FS
 
-const version = "2.1.0"
+const version = "2.1.1"
 
 type app struct {
 	db           *sql.DB
