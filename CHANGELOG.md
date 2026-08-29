@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.1.0 — 2026-08-29
+
+- Add a permission-gated Simkl Calendar v2 TV evidence adapter using only the
+  public Client ID; the Client Secret and user OAuth data are never used.
+- Normalize series premieres, season premieres, mid-season finales, season
+  finales, and series finales while explicitly discarding ordinary episodes.
+- Require conservative date/country/title compatibility or multiple converging
+  existing provider IDs; contradictory identifiers remain unresolved.
+- Add a private non-publishing coverage probe, credential redaction, source
+  failure isolation, atomic staging tests, and `gmd simkl` operations.
+- Make title details resolve the exact event opened by the user so season and
+  finale evidence remains visible and correctly attributed.
+- Keep production Simkl publication disabled until an operator explicitly
+  confirms provider permission for retention and normalized public evidence.
+- Keep structured logs on stderr so management-command stdout remains valid
+  JSON for automation and operator tooling.
+- Serve the PWA manifest with its registered media type; no service worker is
+  registered, so API responses cannot be retained in an offline cache.
+
 ## 2.0.0 — 2026-08-29
 
 - Replace the public Python/WSGI runtime and HTMX shell with a single Go 1.27

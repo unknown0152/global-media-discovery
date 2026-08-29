@@ -116,10 +116,57 @@ case "$command" in
     echo
     read -r -s -p "TheTVDB API key (blank keeps existing): " tvdb
     echo
+    read -r -s -p "Simkl Client ID (blank keeps existing; not the secret): " simkl
+    echo
     [ -z "$tmdb" ] || write_secret secrets/tmdb_token "$tmdb"
     [ -z "$tvdb" ] || write_secret secrets/tvdb_key "$tvdb"
+    [ -z "$simkl" ] || write_secret secrets/simkl_client_id "$simkl"
     wait_stack
     echo "Credentials updated. Run 'gmd update' to collect immediately."
+    ;;
+  simkl)
+    action="${1:-status}"
+    case "$action" in
+      status)
+        enabled="$(sed -n "s/^GMD_ENABLE_SIMKL='\(.*\)'$/\1/p" .env | head -n1)"
+        confirmed="$(sed -n "s/^GMD_SIMKL_PERMISSION_CONFIRMED='\(.*\)'$/\1/p" .env | head -n1)"
+        [ -s secrets/simkl_client_id ] && configured=yes || configured=no
+        echo "Simkl Client ID configured: $configured"
+        echo "Simkl publication enabled: ${enabled:-false}"
+        echo "Simkl permission confirmed: ${confirmed:-false}"
+        ;;
+      test)
+        [ -s secrets/simkl_client_id ] || {
+          echo "Simkl Client ID is not configured. Run: sudo gmd credentials" >&2
+          exit 1
+        }
+        compose run --rm --no-deps collector simkl-probe --catalog tv
+        ;;
+      enable)
+        [ "${2:-}" = "--permission-confirmed" ] || {
+          echo "Usage: gmd simkl enable --permission-confirmed" >&2
+          echo "Enable only after Simkl approves historical retention and normalized public evidence." >&2
+          exit 2
+        }
+        [ -s secrets/simkl_client_id ] || {
+          echo "Simkl Client ID is not configured. Run: sudo gmd credentials" >&2
+          exit 1
+        }
+        set_env_value GMD_SIMKL_PERMISSION_CONFIRMED true
+        set_env_value GMD_ENABLE_SIMKL true
+        wait_stack
+        echo "Simkl TV evidence enabled. Run 'sudo gmd update' to collect now."
+        ;;
+      disable)
+        set_env_value GMD_ENABLE_SIMKL false
+        wait_stack
+        echo "Simkl evidence collection disabled. Existing validated evidence is retained."
+        ;;
+      *)
+        echo "Usage: gmd simkl [status|test|enable --permission-confirmed|disable]" >&2
+        exit 2
+        ;;
+    esac
     ;;
   seerr)
     if [ "$#" -eq 0 ]; then
@@ -201,6 +248,7 @@ Usage: gmd <command>
   backup       Create a consistent timestamped backup
   restore      Validate and atomically restore a backup by filename
   credentials  Update provider credentials without echoing them
+  simkl       Test or permission-gate Simkl TV evidence collection
   seerr        Show, configure, or disable the authenticated Seerr handoff
   doctor       Check Docker, Compose, database, and public API health
   start        Start or recreate the stack

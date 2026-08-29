@@ -106,6 +106,12 @@ GET /api/v1/titles/title_6fb3dc778dc594c16319e362
 
 Returns the full public title/evidence record, including aliases.
 
+Select the exact event opened from a card while keeping the stable title route:
+
+```http
+GET /api/v1/titles/title_6fb3dc778dc594c16319e362?event_id=event_abc123
+```
+
 ## Credits
 
 ```http

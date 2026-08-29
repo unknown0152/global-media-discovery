@@ -9,8 +9,11 @@ from pathlib import Path
 import sys
 from wsgiref.simple_server import make_server
 
+from gmd import __version__
 from gmd.api import ReadOnlyAPI
 from gmd.collector.pipeline import CollectorPipeline
+from gmd.collector.http import HTTPClient
+from gmd.collector.simkl import SIMKL_CATALOGS, SimklCalendarProbe
 from gmd.config import load_settings
 from gmd.db import (
     backup_database,
@@ -48,6 +51,17 @@ def build_parser() -> argparse.ArgumentParser:
     restore.add_argument("source")
 
     sub.add_parser("collector-health", help=argparse.SUPPRESS)
+
+    simkl = sub.add_parser(
+        "simkl-probe",
+        help="privately assess Simkl Calendar v2 without publishing data",
+    )
+    simkl.add_argument(
+        "--catalog",
+        choices=("both", *SIMKL_CATALOGS),
+        default="both",
+        help="calendar catalog to assess (default: both)",
+    )
 
     dev = sub.add_parser("api-dev", help="run a development WSGI server")
     dev.add_argument("--host", default="127.0.0.1")
@@ -115,6 +129,24 @@ def main(argv: list[str] | None = None) -> int:
         validation = validate_database(settings.database_path)
         if not validation.get("titles"):
             return 1
+        return 0
+
+    if args.command == "simkl-probe":
+        if not settings.simkl_client_id:
+            raise SystemExit(
+                "Simkl Client ID is not configured; the Client Secret is not required"
+            )
+        catalogs = SIMKL_CATALOGS if args.catalog == "both" else (args.catalog,)
+        client = HTTPClient(
+            f"global-media-discovery/{__version__}",
+            timeout=settings.request_timeout_seconds,
+            min_delay_seconds=settings.source_delay_ms / 1000,
+        )
+        result = SimklCalendarProbe(settings.simkl_client_id, client).run(
+            settings.database_path,
+            catalogs,
+        )
+        _print(result)
         return 0
 
     if args.command == "api-dev":

@@ -79,6 +79,8 @@ class Settings:
     api_prefix: str
     tmdb_token: str
     tvdb_key: str
+    simkl_client_id: str
+    simkl_permission_confirmed: bool
     update_interval_hours: int
     past_days: int
     future_days: int
@@ -95,6 +97,7 @@ class Settings:
     enable_tmdb: bool
     enable_tvdb: bool
     enable_tvmaze: bool
+    enable_simkl: bool
     max_query_days: int
     max_page_size: int
     rate_limit_per_minute: int
@@ -124,6 +127,8 @@ def load_settings() -> Settings:
         api_prefix="/api/v1",
         tmdb_token=_read_secret("TMDB_TOKEN", "TMDB_TOKEN_FILE"),
         tvdb_key=_read_secret("TVDB_KEY", "TVDB_KEY_FILE"),
+        simkl_client_id=_read_secret("SIMKL_CLIENT_ID", "SIMKL_CLIENT_ID_FILE"),
+        simkl_permission_confirmed=_bool("GMD_SIMKL_PERMISSION_CONFIRMED", False),
         update_interval_hours=_int(
             "GMD_UPDATE_INTERVAL_HOURS", 24, minimum=1, maximum=168
         ),
@@ -156,6 +161,7 @@ def load_settings() -> Settings:
         enable_tmdb=_bool("GMD_ENABLE_TMDB", True),
         enable_tvdb=_bool("GMD_ENABLE_TVDB", True),
         enable_tvmaze=_bool("GMD_ENABLE_TVMAZE", True),
+        enable_simkl=_bool("GMD_ENABLE_SIMKL", False),
         max_query_days=_int("GMD_MAX_QUERY_DAYS", 366, minimum=1, maximum=3650),
         max_page_size=_int("GMD_MAX_PAGE_SIZE", 200, minimum=20, maximum=1000),
         rate_limit_per_minute=_int(

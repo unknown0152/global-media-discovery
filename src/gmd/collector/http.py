@@ -15,6 +15,29 @@ import urllib.request
 
 LOGGER = logging.getLogger(__name__)
 
+REDACTED_QUERY_KEYS = {
+    "access_token",
+    "api_key",
+    "apikey",
+    "client_id",
+    "client_secret",
+    "key",
+    "token",
+}
+
+
+def redact_url(url: str) -> str:
+    """Remove credentials and identifiers from URLs before logging them."""
+    parsed = urllib.parse.urlsplit(url)
+    redacted = []
+    for key, value in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True):
+        if key.lower() in REDACTED_QUERY_KEYS:
+            value = "[REDACTED]"
+        redacted.append((key, value))
+    return urllib.parse.urlunsplit(
+        (parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(redacted), "")
+    )
+
 
 @dataclass(slots=True)
 class HTTPClient:
@@ -44,6 +67,8 @@ class HTTPClient:
                 {key: value for key, value in params.items() if value is not None}
             )
             url = f"{url}{'&' if '?' in url else '?'}{query}"
+
+        safe_url = redact_url(url)
 
         payload = None
         merged_headers = {
@@ -77,7 +102,7 @@ class HTTPClient:
                 self._last_request_at = time.monotonic()
                 detail = error.read().decode("utf-8", "replace")[:2000]
                 last_error = RuntimeError(
-                    f"HTTP {error.code} for {url}: {detail or error.reason}"
+                    f"HTTP {error.code} for {safe_url}: {detail or error.reason}"
                 )
                 if error.code not in {408, 425, 429, 500, 502, 503, 504}:
                     raise last_error from error
@@ -95,7 +120,7 @@ class HTTPClient:
                     "source request failed; retrying",
                     extra={
                         "structured": {
-                            "url": url,
+                            "url": safe_url,
                             "attempt": attempt,
                             "delay_seconds": round(delay, 2),
                             "error": str(last_error),
@@ -105,5 +130,5 @@ class HTTPClient:
                 time.sleep(delay)
 
         raise RuntimeError(
-            f"request failed after {self.max_attempts} attempts: {url}"
+            f"request failed after {self.max_attempts} attempts: {safe_url}"
         ) from last_error

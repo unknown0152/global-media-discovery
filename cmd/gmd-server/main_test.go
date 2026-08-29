@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -62,6 +63,21 @@ func TestStableRoutesAndHead(t *testing.T) {
 	}
 }
 
+func TestCreditsIncludeSimklAttribution(t *testing.T) {
+	a := testApp(t)
+	status, _, payload := request(t, a, http.MethodGet, "/api/v1/credits")
+	if status != http.StatusOK {
+		t.Fatal(payload)
+	}
+	for _, source := range payload["sources"].([]any) {
+		item := source.(map[string]any)
+		if item["id"] == "simkl" && strings.Contains(item["notice"].(string), "Simkl") {
+			return
+		}
+	}
+	t.Fatal("Simkl attribution is missing")
+}
+
 func TestPublicAPIIsReadOnly(t *testing.T) {
 	a := testApp(t)
 	for _, method := range []string{"POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE"} {
@@ -99,6 +115,25 @@ func TestEventsFiltersPaginationAndEvidence(t *testing.T) {
 	}
 }
 
+func TestTitleDetailSelectsTheRequestedEvent(t *testing.T) {
+	a := testApp(t)
+	status, _, payload := request(t, a, http.MethodGet, "/api/v1/events?from=2026-08-13&to=2026-08-13&limit=1")
+	if status != 200 {
+		t.Fatal(payload)
+	}
+	item := payload["items"].([]any)[0].(map[string]any)
+	titleID := item["title"].(map[string]any)["id"].(string)
+	eventID := item["event_id"].(string)
+	status, _, detail := request(t, a, http.MethodGet, "/api/v1/titles/"+titleID+"?event_id="+eventID)
+	if status != 200 || detail["event_id"] != eventID {
+		t.Fatalf("event-specific detail failed: status=%d detail=%v", status, detail)
+	}
+	status, _, invalid := request(t, a, http.MethodGet, "/api/v1/titles/"+titleID+"?event_id=bad!")
+	if status != 400 || invalid["error"].(map[string]any)["code"] != "invalid_event_id" {
+		t.Fatalf("invalid event id was not rejected: status=%d payload=%v", status, invalid)
+	}
+}
+
 func TestInputBoundsAndErrors(t *testing.T) {
 	a := testApp(t)
 	cases := map[string]string{"/api/v1/events?from=2026-02-30&to=2026-03-01": "invalid_from", "/api/v1/events?from=2026-01-01&to=2028-01-01": "date_range_too_large", "/api/v1/events?country=USA": "invalid_country", "/api/v1/events?limit=10000": "invalid_limit", "/api/v1/search?q=": "missing_q"}
@@ -126,5 +161,19 @@ func TestFrontendCountryAndResetUseRouterState(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing deterministic state contract %q", want)
 		}
+	}
+}
+
+func TestWebManifestHasTheCorrectMediaType(t *testing.T) {
+	a := testApp(t)
+	dist, err := fs.Sub(frontend, "dist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.static = http.FileServerFS(dist)
+	recorder := httptest.NewRecorder()
+	a.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/manifest.webmanifest", nil))
+	if got := recorder.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/manifest+json") {
+		t.Fatalf("manifest content type=%q", got)
 	}
 }

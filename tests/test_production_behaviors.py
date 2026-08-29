@@ -82,6 +82,7 @@ class ProductionBehaviorTests(unittest.TestCase):
             ("/api/v1/status", ""),
             ("/api/v1/stats", ""),
             ("/api/v1/coverage", ""),
+            ("/api/v1/credits", ""),
             ("/api/v1/filters", "from=2026-08-13&to=2026-08-13"),
             ("/api/v1/date-range", "from=2026-08-13&to=2026-08-13"),
             ("/api/v1/search", "q=Hit%20Point"),
@@ -94,6 +95,11 @@ class ProductionBehaviorTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertEqual(payload, {})
                 self.assertIn("Content-Length", headers)
+
+        status, _, credits = self.request("GET", "/api/v1/credits")
+        self.assertEqual(status, 200)
+        source_ids = {source["id"] for source in credits["sources"]}
+        self.assertIn("simkl", source_ids)
 
     def test_api_never_returns_an_empty_conditional_response(self) -> None:
         path = "/api/v1/events"
@@ -260,6 +266,20 @@ class ProductionBehaviorTests(unittest.TestCase):
         self.assertEqual(first["summary"]["matching_events"], 8)
 
         item = first["items"][0]
+        status, _, detail = self.request(
+            "GET",
+            f"/api/v1/titles/{item['title']['id']}",
+            f"event_id={item['event_id']}",
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(detail["event_id"], item["event_id"])
+        status, _, invalid = self.request(
+            "GET",
+            f"/api/v1/titles/{item['title']['id']}",
+            "event_id=bad!",
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(invalid["error"]["code"], "invalid_event_id")
         filters = {
             "q": item["title"]["name"],
             "country": item["countries"][0],
@@ -347,6 +367,53 @@ class ProductionBehaviorTests(unittest.TestCase):
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["source_results"]["tvmaze"], "ok")
         self.assertIn("error", result["source_results"]["tmdb"])
+        self.assertEqual(validate_database(self.database)["integrity"], "ok")
+
+    def test_simkl_publication_requires_explicit_permission_gate(self) -> None:
+        settings = replace(
+            self.settings,
+            enable_tmdb=False,
+            enable_tvdb=False,
+            enable_tvmaze=False,
+            enable_simkl=True,
+            simkl_client_id="configured-for-test",
+            simkl_permission_confirmed=False,
+        )
+        before = hashlib.sha256(self.database.read_bytes()).hexdigest()
+        with patch.object(CollectorPipeline, "_update_simkl") as update_simkl:
+            result = CollectorPipeline(settings).update()
+        update_simkl.assert_not_called()
+        self.assertEqual(result["status"], "degraded")
+        self.assertEqual(
+            result["source_results"]["simkl"],
+            "disabled: permission not confirmed",
+        )
+        self.assertEqual(before, hashlib.sha256(self.database.read_bytes()).hexdigest())
+
+    def test_permissioned_simkl_source_is_isolated_and_publishable(self) -> None:
+        settings = replace(
+            self.settings,
+            enable_tmdb=False,
+            enable_tvdb=False,
+            enable_tvmaze=False,
+            enable_simkl=True,
+            simkl_client_id="configured-for-test",
+            simkl_permission_confirmed=True,
+        )
+        metrics = {
+            "relevant_titles": 2,
+            "ingested": 2,
+            "regular_episodes_ignored": 4000,
+        }
+        with patch.object(
+            CollectorPipeline,
+            "_update_simkl",
+            return_value=metrics,
+        ):
+            result = CollectorPipeline(settings).update()
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["source_results"]["simkl"], "ok")
+        self.assertEqual(result["metrics"]["simkl"], metrics)
         self.assertEqual(validate_database(self.database)["integrity"], "ok")
 
     def test_tvmaze_backfill_scans_past_dates_without_credentials(self) -> None:

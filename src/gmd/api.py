@@ -214,7 +214,10 @@ class ReadOnlyAPI:
             title_id = path[len(title_prefix):]
             if not _TITLE_ID_RE.fullmatch(title_id):
                 raise APIError(400, "invalid_title_id", "Invalid title identifier.")
-            item = self.queries.title(title_id)
+            event_id = _bounded(query, "event_id", maximum=80) or ""
+            if event_id and not _TITLE_ID_RE.fullmatch(event_id):
+                raise APIError(400, "invalid_event_id", "Invalid event identifier.")
+            item = self.queries.title(title_id, event_id)
             if item is None:
                 raise APIError(404, "not_found", "Title not found.")
             return item, 300

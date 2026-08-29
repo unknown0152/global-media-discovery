@@ -21,12 +21,18 @@ from gmd.normalize import clean_text, normalize_title, payload_hash, stable_id
 LOGGER = logging.getLogger(__name__)
 
 FIELD_RANKS: dict[str, dict[str, int]] = {
-    "title": {"tmdb": 95, "tvdb": 90, "tvmaze": 85},
-    "overview": {"tmdb": 95, "tvmaze": 88, "tvdb": 80},
-    "poster": {"tmdb": 95, "tvdb": 90, "tvmaze": 85},
-    "format": {"tvdb": 95, "tvmaze": 90, "tmdb": 85},
+    "title": {"tmdb": 95, "tvdb": 90, "tvmaze": 85, "simkl": 55},
+    "overview": {"tmdb": 95, "tvmaze": 88, "tvdb": 80, "simkl": 0},
+    "poster": {"tmdb": 95, "tvdb": 90, "tvmaze": 85, "simkl": 0},
+    "format": {"tvdb": 95, "tvmaze": 90, "tmdb": 85, "simkl": 55},
 }
-SOURCE_DATE_WEIGHT = {"tvmaze": 3.0, "tvdb": 2.5, "tmdb": 2.0, "seed": 1.0}
+SOURCE_DATE_WEIGHT = {
+    "tvmaze": 3.0,
+    "tvdb": 2.5,
+    "simkl": 2.25,
+    "tmdb": 2.0,
+    "seed": 1.0,
+}
 
 
 class CatalogWriter:
@@ -147,7 +153,18 @@ class CatalogWriter:
             and item.countries.intersection(existing_countries)
         )
 
-        return sum((title_match, date_match, country_match)) >= 2
+        corroborating_remote_ids = sum(
+            1
+            for external in item.external_ids
+            if external.source != item.source
+            and self.connection.execute(
+                "SELECT 1 FROM identity_keys WHERE key = ? AND title_id = ?",
+                (external.key, title_id),
+            ).fetchone()
+        )
+        corroborated_identity = corroborating_remote_ids >= 2 and title_match
+
+        return corroborated_identity or sum((title_match, date_match, country_match)) >= 2
 
     def _strict_exact_match(self, item: NormalizedTitle) -> str | None:
         premiere_date = next(
@@ -692,7 +709,8 @@ class CatalogWriter:
             self.connection.execute(
                 """
                 SELECT COUNT(*) FROM identity_keys
-                WHERE title_id = ? AND source IN ('tmdb', 'tvdb', 'tvmaze', 'imdb')
+                WHERE title_id = ?
+                  AND source IN ('tmdb', 'tvdb', 'tvmaze', 'simkl', 'imdb')
                 """,
                 (title_id,),
             ).fetchone()[0]

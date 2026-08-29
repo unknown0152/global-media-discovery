@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 import fcntl
@@ -13,8 +14,14 @@ import sqlite3
 import time
 from typing import Any, Iterator
 
+from gmd import __version__
 from gmd.collector.http import HTTPClient
 from gmd.collector.seed import import_seed
+from gmd.collector.simkl import (
+    SimklCalendarCollector,
+    normalize_simkl_tv,
+    validate_calendar_payload,
+)
 from gmd.collector.tmdb import TMDBCollector, normalize_tmdb
 from gmd.collector.tvdb import TVDBCollector, normalize_tvdb
 from gmd.collector.tvmaze import TVMazeCollector, normalize_tvmaze
@@ -186,6 +193,38 @@ class CollectorPipeline:
                             self._set_source_state(connection, "tvdb", "error", str(error))
                     else:
                         result["source_results"]["tvdb"] = "disabled or missing key"
+
+                    if not self.settings.enable_simkl:
+                        result["source_results"]["simkl"] = "disabled"
+                    elif not self.settings.simkl_permission_confirmed:
+                        result["source_results"]["simkl"] = (
+                            "disabled: permission not confirmed"
+                        )
+                    elif not self.settings.simkl_client_id:
+                        result["source_results"]["simkl"] = (
+                            "disabled or missing Client ID"
+                        )
+                    else:
+                        try:
+                            metrics = self._update_simkl(
+                                connection,
+                                writer,
+                                start,
+                                end,
+                            )
+                            result["source_results"]["simkl"] = "ok"
+                            result["metrics"]["simkl"] = metrics
+                            successful_sources += 1
+                            self._set_source_state(connection, "simkl", "ok")
+                        except Exception as error:
+                            LOGGER.exception("Simkl update failed")
+                            result["source_results"]["simkl"] = f"error: {error}"
+                            self._set_source_state(
+                                connection,
+                                "simkl",
+                                "error",
+                                str(error),
+                            )
 
                     counts = self._counts(connection)
                     result["metrics"]["catalog"] = counts
@@ -407,10 +446,56 @@ class CollectorPipeline:
             "errors": errors,
         }
 
+    def _update_simkl(
+        self,
+        connection: sqlite3.Connection,
+        writer: CatalogWriter,
+        start: date,
+        end: date,
+    ) -> dict[str, Any]:
+        client = self._client("simkl")
+        collector = SimklCalendarCollector(
+            self.settings.simkl_client_id,
+            client,
+            app_version=__version__,
+        )
+        payload = collector.calendar("tv")
+        validation = validate_calendar_payload(payload)
+        records = normalize_simkl_tv(payload, start=start, end=end)
+        event_types: Counter[str] = Counter()
+        ingested = 0
+        errors = 0
+        for record in records:
+            try:
+                writer.ingest(record)
+                event_types.update(event.event_type for event in record.events)
+                ingested += 1
+            except Exception:
+                errors += 1
+                LOGGER.exception(
+                    "Simkl ingest failed",
+                    extra={"structured": {"simkl_id": record.source_id}},
+                )
+        connection.commit()
+        return {
+            "calendar_entries": validation["calendar_entries"],
+            "metadata_records": validation["metadata_records"],
+            "duplicate_schedule_entries": validation[
+                "duplicate_schedule_entries"
+            ],
+            "relevant_titles": len(records),
+            "ingested": ingested,
+            "events_by_type": dict(sorted(event_types.items())),
+            "errors": errors,
+            "regular_episodes_ignored": int(
+                validation["schedule_types"].get("regular_episode", 0)
+            ),
+        }
+
     def _client(self, name: str, *, delay_ms: int | None = None) -> HTTPClient:
         return HTTPClient(
             user_agent=(
-                "GlobalMediaDiscovery/1.0 "
+                f"GlobalMediaDiscovery/{__version__} "
                 f"({self.settings.public_url or 'self-hosted'}; {name})"
             ),
             timeout=self.settings.request_timeout_seconds,
