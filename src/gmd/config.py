@@ -79,6 +79,7 @@ class Settings:
     api_prefix: str
     tmdb_token: str
     tvdb_key: str
+    simkl_client_id: str
     update_interval_hours: int
     past_days: int
     future_days: int
@@ -124,6 +125,7 @@ def load_settings() -> Settings:
         api_prefix="/api/v1",
         tmdb_token=_read_secret("TMDB_TOKEN", "TMDB_TOKEN_FILE"),
         tvdb_key=_read_secret("TVDB_KEY", "TVDB_KEY_FILE"),
+        simkl_client_id=_read_secret("SIMKL_CLIENT_ID", "SIMKL_CLIENT_ID_FILE"),
         update_interval_hours=_int(
             "GMD_UPDATE_INTERVAL_HOURS", 24, minimum=1, maximum=168
         ),
