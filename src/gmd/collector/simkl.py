@@ -71,6 +71,7 @@ def validate_calendar_payload(payload: object) -> dict[str, Any]:
     duplicate_entries = 0
     referenced_ids: set[int] = set()
     finale_counts: Counter[str] = Counter()
+    schedule_types: Counter[str] = Counter()
     for raw_entry in calendar:
         if not isinstance(raw_entry, Mapping):
             raise ValueError("Simkl calendar entry must be an object")
@@ -88,6 +89,14 @@ def validate_calendar_payload(payload: object) -> dict[str, Any]:
                 raise ValueError("Simkl episode value must be an object")
             season_number = episode.get("season")
             episode_number = episode.get("episode")
+            if episode_number == 1 and season_number in {None, 1}:
+                schedule_types["series_premiere_candidate"] += 1
+            elif episode_number == 1:
+                schedule_types["season_premiere"] += 1
+            else:
+                schedule_types["regular_episode"] += 1
+        else:
+            schedule_types["release_without_episode"] += 1
         schedule_key = (simkl_id, timestamp, season_number, episode_number)
         if schedule_key in schedule_keys:
             duplicate_entries += 1
@@ -105,6 +114,7 @@ def validate_calendar_payload(payload: object) -> dict[str, Any]:
         "coverage_start": min(dates) if dates else None,
         "coverage_end": max(dates) if dates else None,
         "finale_types": dict(sorted(finale_counts.items())),
+        "schedule_types": dict(sorted(schedule_types.items())),
     }
 
 
@@ -118,6 +128,25 @@ def _portable_identity_index(connection: sqlite3.Connection) -> dict[str, str]:
     return {str(row["key"]): str(row["title_id"]) for row in rows}
 
 
+def _premiere_candidate_ids(payload: Mapping[str, Any]) -> set[int]:
+    calendar = payload.get("calendar")
+    if not isinstance(calendar, list):
+        return set()
+    candidates: set[int] = set()
+    for entry in calendar:
+        if not isinstance(entry, Mapping):
+            continue
+        episode = entry.get("episode")
+        if not isinstance(episode, Mapping) or episode.get("episode") != 1:
+            continue
+        if episode.get("season") not in {None, 1}:
+            continue
+        simkl_id = entry.get("simkl_id")
+        if isinstance(simkl_id, int) and not isinstance(simkl_id, bool):
+            candidates.add(simkl_id)
+    return candidates
+
+
 def compare_with_catalog(
     payload: Mapping[str, Any],
     connection: sqlite3.Connection,
@@ -129,10 +158,14 @@ def compare_with_catalog(
     if not isinstance(metadata, Mapping):
         raise ValueError("validated Simkl metadata is unavailable")
     local_ids = _portable_identity_index(connection)
+    premiere_candidates = _premiere_candidate_ids(payload)
     matched = 0
     conflicts = 0
+    matched_premieres = 0
+    conflicting_premieres = 0
     match_sources: Counter[str] = Counter()
     unmatched: list[dict[str, Any]] = []
+    unmatched_premieres: list[dict[str, Any]] = []
 
     for raw_key, raw_item in metadata.items():
         if not isinstance(raw_item, Mapping):
@@ -154,10 +187,28 @@ def compare_with_catalog(
                 match_sources[source] += 1
         if len(candidates) == 1:
             matched += 1
+            if int(str(raw_key)) in premiere_candidates:
+                matched_premieres += 1
         elif len(candidates) > 1:
             conflicts += 1
+            if int(str(raw_key)) in premiere_candidates:
+                conflicting_premieres += 1
         elif len(unmatched) < sample_limit:
             unmatched.append(
+                {
+                    "simkl_id": int(str(raw_key)),
+                    "title": str(raw_item.get("title", "")),
+                    "release_date": raw_item.get("release_date"),
+                    "country": raw_item.get("country"),
+                    "network": raw_item.get("network"),
+                }
+            )
+        if (
+            not candidates
+            and int(str(raw_key)) in premiere_candidates
+            and len(unmatched_premieres) < sample_limit
+        ):
+            unmatched_premieres.append(
                 {
                     "simkl_id": int(str(raw_key)),
                     "title": str(raw_item.get("title", "")),
@@ -175,6 +226,14 @@ def compare_with_catalog(
         "match_rate_percent": round((matched / total * 100.0), 2) if total else 0.0,
         "matching_id_sources": dict(sorted(match_sources.items())),
         "unmatched_sample": unmatched,
+        "premiere_candidates": len(premiere_candidates),
+        "matched_premiere_candidates": matched_premieres,
+        "unmatched_premiere_candidates": max(
+            0,
+            len(premiere_candidates) - matched_premieres - conflicting_premieres,
+        ),
+        "conflicting_premiere_candidates": conflicting_premieres,
+        "unmatched_premiere_sample": unmatched_premieres,
     }
 
 

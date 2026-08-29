@@ -60,6 +60,10 @@ class SimklPayloadTests(unittest.TestCase):
         self.assertEqual(summary["referenced_titles"], 2)
         self.assertEqual(summary["duplicate_schedule_entries"], 0)
         self.assertEqual(summary["finale_types"], {"2": 1, "none": 1})
+        self.assertEqual(
+            summary["schedule_types"],
+            {"regular_episode": 1, "series_premiere_candidate": 1},
+        )
 
     def test_orphan_calendar_entry_is_rejected(self) -> None:
         payload = calendar_payload()
@@ -137,6 +141,9 @@ class SimklCatalogProbeTests(unittest.TestCase):
         self.assertEqual(result["matched_catalog_titles"], 1)
         self.assertEqual(result["unmatched_catalog_titles"], 1)
         self.assertEqual(result["identity_conflicts"], 0)
+        self.assertEqual(result["premiere_candidates"], 1)
+        self.assertEqual(result["matched_premiere_candidates"], 1)
+        self.assertEqual(result["unmatched_premiere_candidates"], 0)
         sample = result["unmatched_sample"]
         self.assertEqual(sample[0]["title"], "Unmatched Show")
 
