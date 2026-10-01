@@ -1,4 +1,4 @@
-FROM node:24-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /src
 COPY package.json package-lock.json tsconfig.json vite.config.ts ./
 RUN npm ci --ignore-scripts
